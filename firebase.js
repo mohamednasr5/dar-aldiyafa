@@ -291,6 +291,32 @@ window.doLogin = async function() {
   errEl.classList.remove('hidden');
 };
 
+// ============================================================
+// TOGGLE PASSWORD VISIBILITY
+// ============================================================
+window.togglePasswordVisibility = function() {
+  const input = document.getElementById('login-password');
+  const icon = document.getElementById('eye-icon');
+  if (!input) return;
+
+  if (input.type === 'password') {
+    input.type = 'text';
+    // Eye with slash (hidden)
+    icon.innerHTML = `
+      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    `;
+  } else {
+    input.type = 'password';
+    // Eye open
+    icon.innerHTML = `
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    `;
+  }
+};
+
 function loginSuccess(user) {
   AppState.currentUser = user;
   localStorage.setItem('hotelSession', JSON.stringify(user));
@@ -342,7 +368,7 @@ window.doLogout = function() {
 // FIREBASE REALTIME LISTENERS
 // ============================================================
 function initDataListeners() {
-  // Rooms
+  // Rooms — يحدّث الكروت + الجدول + الإحصائيات دايماً
   onValue(ref(db, 'rooms'), snap => {
     AppState.rooms = snap.exists() ? snap.val() : {};
     renderRooms();
@@ -351,10 +377,11 @@ function initDataListeners() {
     populateRoomDropdown();
   });
 
-  // Guests
+  // Guests — يحدّث الكروت + الجدول (بيانات النزيل بتظهر في الجدول)
   onValue(ref(db, 'guests'), snap => {
     AppState.guests = snap.exists() ? snap.val() : {};
-    renderRooms(); // refresh cards with guest data
+    renderRooms();
+    updateRoomsTable();
   });
 
   // Reservations
@@ -396,6 +423,7 @@ window.showSection = function(name) {
   if (sec) sec.classList.add('active');
 
   if (name === 'financial') updateFinancials();
+  if (name === 'rooms') { renderRooms(); updateRoomsTable(); }
 
   // Close sidebar on mobile
   if (window.innerWidth <= 768) {
@@ -793,7 +821,14 @@ window.updateRoomStatusFromModal = async function() {
   const roomId = document.getElementById('modal-room-id').value;
   if (!roomId) return;
   const status = document.getElementById('modal-status').value;
-  // Will be saved on full save
+
+  // حفظ فوري في Firebase — يُحدِّث الكروت والجدول في نفس اللحظة
+  try {
+    await dbUpdate(`rooms/${roomId}`, { status });
+    // الـ onValue هيشتغل تلقائياً ويحدّث renderRooms + updateRoomsTable
+  } catch(e) {
+    console.warn('Status update failed:', e);
+  }
 };
 
 // ============================================================
@@ -836,7 +871,7 @@ window.saveRoom = async function() {
   const roomData = { number, type, floor, status, createdAt: Date.now() };
 
   if (editId) {
-    await dbUpdate(`rooms/${editId}`, { number, type, floor });
+    await dbUpdate(`rooms/${editId}`, { number, type, floor, status });
     logActivity('room_edit', `تعديل الغرفة ${number}`, '✏️');
     showToast('تم تحديث الغرفة ✅', 'success');
   } else {

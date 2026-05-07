@@ -238,11 +238,63 @@ body.light-mode .hotel-name-ar {
   align-items: center;
 }
 
+/* أيقونة على اليسار (RTL = يمين الحقل) */
+.input-icon-left {
+  position: absolute;
+  right: 14px;
+  font-size: 16px;
+  z-index: 1;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* زر إظهار/إخفاء كلمة السر */
+.toggle-password-btn {
+  position: absolute;
+  left: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+  z-index: 2;
+}
+.toggle-password-btn:hover {
+  color: var(--neon-blue);
+  background: rgba(68,136,255,0.1);
+}
+
+/* الحقول مع أيقونة يمين ويسار */
+.input-wrapper input {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 44px 12px 44px;
+  color: var(--text-primary);
+  font-family: var(--font-ar);
+  font-size: 14px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  direction: rtl;
+}
+
+/* حقل بدون أيقونة يسار */
+.input-wrapper input.no-left-icon {
+  padding-left: 14px;
+}
+
+/* الأيقونة القديمة (للتوافق) */
 .input-icon {
   position: absolute;
   right: 14px;
   font-size: 16px;
   z-index: 1;
+  pointer-events: none;
 }
 
 .input-wrapper input,
@@ -737,52 +789,103 @@ body.light-mode .form-group textarea {
 
 .room-card:hover::before { opacity: 1; }
 
-/* Status colors */
+/* ====== STATUS FULL BACKGROUND COLORS ====== */
+
+/* فارغة - أخضر */
 .room-card.available {
-  border-color: rgba(0,230,118,0.4);
+  background: linear-gradient(145deg, rgba(0,200,100,0.18) 0%, rgba(0,230,118,0.08) 100%);
+  border-color: rgba(0,230,118,0.55);
+  box-shadow: inset 0 0 30px rgba(0,230,118,0.06), 0 4px 15px rgba(0,230,118,0.12);
 }
 .room-card.available::before {
-  background: linear-gradient(135deg, rgba(0,230,118,0.08), transparent);
+  background: linear-gradient(135deg, rgba(0,230,118,0.12), transparent);
 }
 .room-card.available:hover {
-  box-shadow: 0 12px 40px var(--available-glow), 0 0 0 1px var(--available);
+  box-shadow: 0 12px 40px rgba(0,230,118,0.35), 0 0 0 1px var(--available), inset 0 0 30px rgba(0,230,118,0.1);
+  background: linear-gradient(145deg, rgba(0,200,100,0.28) 0%, rgba(0,230,118,0.14) 100%);
 }
 
+/* شاغلة - أحمر */
 .room-card.occupied {
-  border-color: rgba(255,61,90,0.4);
+  background: linear-gradient(145deg, rgba(255,50,80,0.18) 0%, rgba(255,61,90,0.08) 100%);
+  border-color: rgba(255,61,90,0.55);
+  box-shadow: inset 0 0 30px rgba(255,61,90,0.06), 0 4px 15px rgba(255,61,90,0.12);
 }
 .room-card.occupied::before {
-  background: linear-gradient(135deg, rgba(255,61,90,0.08), transparent);
+  background: linear-gradient(135deg, rgba(255,61,90,0.12), transparent);
 }
 .room-card.occupied:hover {
-  box-shadow: 0 12px 40px var(--occupied-glow), 0 0 0 1px var(--occupied);
+  box-shadow: 0 12px 40px rgba(255,61,90,0.35), 0 0 0 1px var(--occupied), inset 0 0 30px rgba(255,61,90,0.1);
+  background: linear-gradient(145deg, rgba(255,50,80,0.28) 0%, rgba(255,61,90,0.14) 100%);
 }
 
+/* محجوزة - برتقالي */
 .room-card.reserved {
-  border-color: rgba(255,152,0,0.4);
+  background: linear-gradient(145deg, rgba(255,140,0,0.18) 0%, rgba(255,152,0,0.08) 100%);
+  border-color: rgba(255,152,0,0.55);
+  box-shadow: inset 0 0 30px rgba(255,152,0,0.06), 0 4px 15px rgba(255,152,0,0.12);
 }
 .room-card.reserved::before {
-  background: linear-gradient(135deg, rgba(255,152,0,0.08), transparent);
+  background: linear-gradient(135deg, rgba(255,152,0,0.12), transparent);
 }
 .room-card.reserved:hover {
-  box-shadow: 0 12px 40px var(--reserved-glow), 0 0 0 1px var(--reserved);
+  box-shadow: 0 12px 40px rgba(255,152,0,0.35), 0 0 0 1px var(--reserved), inset 0 0 30px rgba(255,152,0,0.1);
+  background: linear-gradient(145deg, rgba(255,140,0,0.28) 0%, rgba(255,152,0,0.14) 100%);
 }
 
+/* تنظيف - أزرق */
 .room-card.cleaning {
-  border-color: rgba(41,182,246,0.4);
+  background: linear-gradient(145deg, rgba(30,160,240,0.18) 0%, rgba(41,182,246,0.08) 100%);
+  border-color: rgba(41,182,246,0.55);
+  box-shadow: inset 0 0 30px rgba(41,182,246,0.06), 0 4px 15px rgba(41,182,246,0.12);
+}
+.room-card.cleaning::before {
+  background: linear-gradient(135deg, rgba(41,182,246,0.12), transparent);
 }
 .room-card.cleaning:hover {
-  box-shadow: 0 12px 40px var(--cleaning-glow), 0 0 0 1px var(--cleaning);
+  box-shadow: 0 12px 40px rgba(41,182,246,0.35), 0 0 0 1px var(--cleaning), inset 0 0 30px rgba(41,182,246,0.1);
+  background: linear-gradient(145deg, rgba(30,160,240,0.28) 0%, rgba(41,182,246,0.14) 100%);
 }
 
+/* صيانة - رمادي */
 .room-card.maintenance {
-  border-color: rgba(120,144,156,0.3);
-  opacity: 0.8;
+  background: linear-gradient(145deg, rgba(100,116,139,0.18) 0%, rgba(120,144,156,0.08) 100%);
+  border-color: rgba(120,144,156,0.4);
+  box-shadow: inset 0 0 30px rgba(120,144,156,0.05), 0 4px 15px rgba(120,144,156,0.08);
+  opacity: 0.9;
+}
+.room-card.maintenance::before {
+  background: linear-gradient(135deg, rgba(120,144,156,0.12), transparent);
+}
+.room-card.maintenance:hover {
+  box-shadow: 0 12px 30px rgba(120,144,156,0.3), 0 0 0 1px var(--maintenance);
+  opacity: 1;
 }
 
-/* VIP Room Card */
+/* VIP Room Card - يحتفظ بالذهب + يضيف لون الحالة */
 .room-card.vip {
-  background: linear-gradient(135deg, rgba(240,192,64,0.06), rgba(240,192,64,0.02));
+  border-color: rgba(240,192,64,0.6);
+  box-shadow: inset 0 0 30px rgba(240,192,64,0.08), 0 4px 20px rgba(240,192,64,0.15);
+}
+
+/* VIP فارغة */
+.room-card.vip.available {
+  background: linear-gradient(145deg, rgba(240,192,64,0.12) 0%, rgba(0,200,100,0.12) 100%);
+  border-color: rgba(240,192,64,0.7);
+}
+/* VIP شاغلة */
+.room-card.vip.occupied {
+  background: linear-gradient(145deg, rgba(240,192,64,0.1) 0%, rgba(255,61,90,0.15) 100%);
+  border-color: rgba(240,192,64,0.7);
+}
+/* VIP محجوزة */
+.room-card.vip.reserved {
+  background: linear-gradient(145deg, rgba(240,192,64,0.1) 0%, rgba(255,152,0,0.15) 100%);
+  border-color: rgba(240,192,64,0.7);
+}
+/* VIP صيانة */
+.room-card.vip.maintenance {
+  background: linear-gradient(145deg, rgba(240,192,64,0.08) 0%, rgba(120,144,156,0.12) 100%);
   border-color: rgba(240,192,64,0.5);
 }
 
