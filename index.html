@@ -214,38 +214,40 @@
         </div>
       </div>
 
-      <!-- Smart Filter Bar -->
+      <!-- Smart Filter Bar with Dropdowns -->
       <div class="smart-filter-bar">
-        <div class="smart-filter-row">
-          <span class="filter-label">📊 الحالة:</span>
-          <div class="smart-filter-group">
-            <button class="filter-chip active" data-value="all" onclick="applySmartFilter('status','all',this)">الكل</button>
-            <button class="filter-chip available" data-value="available" onclick="applySmartFilter('status','available',this)">✅ شاغرة</button>
-            <button class="filter-chip occupied" data-value="occupied" onclick="applySmartFilter('status','occupied',this)">🔴 مشغولة</button>
-            <button class="filter-chip reserved" data-value="reserved" onclick="applySmartFilter('status','reserved',this)">🟠 محجوزة</button>
-            <button class="filter-chip cleaning" data-value="cleaning" onclick="applySmartFilter('status','cleaning',this)">🔵 تنظيف</button>
-            <button class="filter-chip maintenance" data-value="maintenance" onclick="applySmartFilter('status','maintenance',this)">⚙️ صيانة</button>
+        <div class="smart-filter-dropdowns">
+          <div class="smart-filter-item">
+            <label class="filter-dropdown-label">📊 الحالة</label>
+            <select class="filter-select" id="filter-status" onchange="applyDropdownFilter()">
+              <option value="all">الكل</option>
+              <option value="available">✅ شاغرة</option>
+              <option value="occupied">🔴 مشغولة</option>
+              <option value="reserved">🟠 محجوزة</option>
+              <option value="cleaning">🔵 تنظيف</option>
+              <option value="maintenance">⚙️ صيانة</option>
+            </select>
           </div>
-        </div>
-        <div class="smart-filter-row">
-          <span class="filter-label">🏷️ النوع:</span>
-          <div class="smart-filter-group">
-            <button class="filter-chip active" data-value="all" onclick="applySmartFilter('type','all',this)">الكل</button>
-            <button class="filter-chip vip" data-value="vip" onclick="applySmartFilter('type','vip',this)">👑 VIP</button>
-            <button class="filter-chip regular" data-value="regular" onclick="applySmartFilter('type','regular',this)">🛏️ عادية</button>
+          <div class="smart-filter-item">
+            <label class="filter-dropdown-label">🏷️ النوع</label>
+            <select class="filter-select" id="filter-type" onchange="applyDropdownFilter()">
+              <option value="all">الكل</option>
+              <option value="vip">👑 VIP</option>
+              <option value="regular">🛏️ عادية</option>
+            </select>
           </div>
-        </div>
-        <div class="smart-filter-row">
-          <span class="filter-label">🏢 الدور:</span>
-          <div class="smart-filter-group">
-            <button class="filter-chip active" data-value="all" onclick="applySmartFilter('floor','all',this)">الكل</button>
-            <button class="filter-chip" data-value="1" onclick="applySmartFilter('floor','1',this)">الأول</button>
-            <button class="filter-chip" data-value="2" onclick="applySmartFilter('floor','2',this)">الثاني</button>
-            <button class="filter-chip" data-value="3" onclick="applySmartFilter('floor','3',this)">الثالث</button>
-            <button class="filter-chip" data-value="4" onclick="applySmartFilter('floor','4',this)">الرابع</button>
-            <button class="filter-chip" data-value="5" onclick="applySmartFilter('floor','5',this)">الخامس</button>
+          <div class="smart-filter-item">
+            <label class="filter-dropdown-label">🏢 الدور</label>
+            <select class="filter-select" id="filter-floor" onchange="applyDropdownFilter()">
+              <option value="all">الكل</option>
+              <option value="1">الدور الأول</option>
+              <option value="2">الدور الثاني</option>
+              <option value="3">الدور الثالث</option>
+              <option value="4">الدور الرابع</option>
+              <option value="5">الدور الخامس</option>
+            </select>
           </div>
-          <button class="btn-reset-filter" onclick="resetSmartFilter()">🔄 إعادة ضبط</button>
+          <button class="btn-reset-filter" onclick="resetDropdownFilter()">🔄 إعادة ضبط</button>
         </div>
       </div>
 
@@ -581,13 +583,16 @@
 
 <!-- Employee Modal -->
 <div id="employee-modal" class="modal-overlay hidden">
-  <div class="modal-container">
+  <div class="modal-container modal-emp">
     <div class="modal-header">
       <h3 id="emp-modal-title">إضافة موظف</h3>
       <button class="modal-close" onclick="closeModal('employee-modal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="edit-emp-id">
+
+      <!-- Basic Info -->
+      <div class="emp-section-title">📋 البيانات الأساسية</div>
       <div class="form-grid">
         <div class="form-group">
           <label>الاسم الكامل *</label>
@@ -599,26 +604,129 @@
         </div>
         <div class="form-group">
           <label>كلمة المرور *</label>
-          <input type="password" id="emp-password" placeholder="كلمة المرور">
+          <div class="password-field-wrapper">
+            <input type="password" id="emp-password" placeholder="كلمة المرور">
+            <button type="button" class="toggle-password-btn" onclick="toggleEmpPassword()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
         <div class="form-group">
-          <label>الصلاحيات</label>
+          <label>المسمى الوظيفي</label>
           <select id="emp-role">
             <option value="receptionist">موظف استقبال</option>
-            <option value="manager">مدير</option>
+            <option value="manager">مدير قسم</option>
             <option value="admin">مدير النظام</option>
           </select>
         </div>
       </div>
-      <div class="permissions-grid">
-        <label><input type="checkbox" id="perm-rooms" checked> إدارة الغرف</label>
-        <label><input type="checkbox" id="perm-guests" checked> إدارة النزلاء</label>
-        <label><input type="checkbox" id="perm-financial"> التقارير المالية</label>
-        <label><input type="checkbox" id="perm-employees"> إدارة الموظفين</label>
+
+      <!-- Permissions -->
+      <div class="emp-section-title">🔐 صلاحيات الأقسام</div>
+      <div class="perm-toggle-grid">
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">🏠</span>
+            <div>
+              <div class="perm-name">لوحة التحكم</div>
+              <div class="perm-desc">عرض الغرف والإحصائيات الرئيسية</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-dashboard" checked disabled>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">🚪</span>
+            <div>
+              <div class="perm-name">إدارة الغرف</div>
+              <div class="perm-desc">عرض وتعديل الغرف وبيانات النزلاء</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-rooms" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">📅</span>
+            <div>
+              <div class="perm-name">الحجوزات</div>
+              <div class="perm-desc">إضافة وإدارة الحجوزات المسبقة</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-reservations" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">🔍</span>
+            <div>
+              <div class="perm-name">البحث</div>
+              <div class="perm-desc">البحث عن النزلاء وسجلاتهم</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-search" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">💰</span>
+            <div>
+              <div class="perm-name">التقارير المالية</div>
+              <div class="perm-desc">عرض الإيرادات والمعاملات المالية</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-financial">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">👥</span>
+            <div>
+              <div class="perm-name">الموظفون</div>
+              <div class="perm-desc">إضافة وتعديل وحذف الموظفين</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-employees">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">📋</span>
+            <div>
+              <div class="perm-name">سجل النشاط</div>
+              <div class="perm-desc">عرض سجلات العمليات والأحداث</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-activity" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-primary" onclick="saveEmployee()">💾 حفظ</button>
+      <button class="btn-primary" onclick="saveEmployee()">💾 حفظ البيانات</button>
       <button class="btn-secondary" onclick="closeModal('employee-modal')">إلغاء</button>
     </div>
   </div>
