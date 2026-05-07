@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSidebarBackdrop();
 
   // Set today's date defaults
-  const today = new Date().toISOString().split('T')[0];
+  const today = getEgyptTime().toISOString().split('T')[0];
   const finFrom = document.getElementById('fin-from');
   const finTo = document.getElementById('fin-to');
   if (finFrom) { finFrom.value = today; finTo.value = today; }
@@ -126,24 +126,81 @@ function initParticles() {
 }
 
 // ============================================================
-// CLOCK
+// CLOCK - متزامن مع توقيت مصر (Africa/Cairo)
 // ============================================================
+function getEgyptTime() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
+}
+
 function initClock() {
   const tick = () => {
-    const now = new Date();
+    const now = getEgyptTime();
     const clock = document.getElementById('live-clock');
     const dateEl = document.getElementById('live-date');
     if (clock) {
-      clock.textContent = now.toLocaleTimeString('ar-EG');
+      clock.textContent = now.toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo' });
     }
     if (dateEl) {
       dateEl.textContent = now.toLocaleDateString('ar-EG', {
+        timeZone: 'Africa/Cairo',
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
       });
     }
   };
   tick();
   setInterval(tick, 1000);
+
+  // فحص انتهاء مدة الإقامة كل دقيقة
+  setInterval(checkExpiredGuests, 60 * 1000);
+  setTimeout(checkExpiredGuests, 3000); // فحص فوري بعد 3 ثوان من التحميل
+}
+
+// ============================================================
+// AUTO CHECKOUT - تحويل الغرفة لمتاحة عند انتهاء وقت الإقامة
+// ============================================================
+async function checkExpiredGuests() {
+  const now = getEgyptTime();
+  const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD بتوقيت مصر
+  const currentHour = now.getHours();
+  const currentMin = now.getMinutes();
+
+  for (const [roomId, guest] of Object.entries(AppState.guests)) {
+    if (!guest.checkoutDate) continue;
+    const room = AppState.rooms[roomId];
+    if (!room || room.status === 'available') continue;
+
+    const [coHour, coMin] = (guest.checkoutTime || '12:00').split(':').map(Number);
+
+    // الغرفة منتهية إذا: تاريخ الخروج قبل اليوم، أو تاريخ الخروج اليوم والوقت مر
+    const checkoutDate = guest.checkoutDate;
+    const isExpired =
+      checkoutDate < todayStr ||
+      (checkoutDate === todayStr && (currentHour > coHour || (currentHour === coHour && currentMin >= coMin)));
+
+    if (isExpired) {
+      console.log(`[AutoCheckout] Room ${room.number} expired, clearing...`);
+
+      // أرشفة بيانات النزيل قبل الحذف
+      try {
+        await dbPush('checkoutHistory', {
+          ...guest,
+          autoCheckout: true,
+          checkoutActual: Date.now(),
+          roomNumber: room.number
+        });
+      } catch(e) {}
+
+      // تنظيف الغرفة وتحويلها لمتاحة
+      await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
+      await dbRemove(`guests/${roomId}`);
+
+      logActivity('auto_checkout',
+        `خروج تلقائي من الغرفة ${room.number}: ${guest.name || 'نزيل'} (انتهت مدة الإقامة)`,
+        '⏰');
+
+      showToast(`⏰ تم تحويل الغرفة ${room.number} لمتاحة (انتهت مدة الإقامة)`, 'info', 5000);
+    }
+  }
 }
 
 // ============================================================
@@ -382,6 +439,8 @@ function initDataListeners() {
     AppState.guests = snap.exists() ? snap.val() : {};
     renderRooms();
     updateRoomsTable();
+    // فحص انتهاء الإقامات بعد أي تغيير في البيانات
+    setTimeout(checkExpiredGuests, 500);
   });
 
   // Reservations
@@ -512,8 +571,8 @@ function renderRooms() {
   grid.innerHTML = filtered.map(([id, room]) => {
     const guest = AppState.guests[id];
     const statusLabels = {
-      available: 'فارغة', occupied: 'شاغلة',
-      reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة'
+      available: 'متاحة', occupied: 'مشغولة',
+      reserved: 'محجوزة', cleaning: 'جار التنظيف', maintenance: 'تحت الصيانة'
     };
     const statusEmojis = {
       available: '🟢', occupied: '🔴', reserved: '🟠', cleaning: '🔵', maintenance: '⚙️'
@@ -542,7 +601,7 @@ function renderRooms() {
       </div>
       <div class="status-indicator">
         <div class="status-dot-card"></div>
-        <span class="status-text">${statusLabels[room.status] || 'شاغرة'} ${statusEmojis[room.status] || ''}</span>
+        <span class="status-text">${statusLabels[room.status] || 'متاحة'} ${statusEmojis[room.status] || ''}</span>
       </div>
       ${guest?.name ? `<div class="guest-name-card">👤 ${guest.name}</div>` : ''}
       <div class="room-card-footer">
@@ -581,7 +640,7 @@ function updateStats() {
   setText('stat-total', rooms.length);
 
   // Today's revenue
-  const today = new Date().toISOString().split('T')[0];
+  const today = getEgyptTime().toISOString().split('T')[0];
   let todayRev = 0;
   Object.values(AppState.guests).forEach(g => {
     if (g.checkinDate === today && g.paid) {
@@ -617,11 +676,11 @@ function updateRoomsTable() {
   tbody.innerHTML = rooms.map(([id, room]) => {
     const guest = AppState.guests[id];
     const statusMap = {
-      available: ['badge-available','فارغة'], occupied: ['badge-occupied','شاغلة'],
-      reserved: ['badge-reserved','محجوزة'], cleaning: ['badge-cleaning','تنظيف'],
-      maintenance: ['badge-maintenance','صيانة']
+      available: ['badge-available','متاحة'], occupied: ['badge-occupied','مشغولة'],
+      reserved: ['badge-reserved','محجوزة'], cleaning: ['badge-cleaning','جار التنظيف'],
+      maintenance: ['badge-maintenance','تحت الصيانة']
     };
-    const [badgeClass, label] = statusMap[room.status] || ['badge-available','شاغرة'];
+    const [badgeClass, label] = statusMap[room.status] || ['badge-available','متاحة'];
 
     return `
     <tr>
@@ -662,9 +721,9 @@ window.openRoomModal = function(roomId) {
   if (keyCb) keyCb.checked = room.keyWithReception || false;
 
   // Guest data
-  const now = new Date();
+  const now = getEgyptTime();
   const todayDate = now.toISOString().split('T')[0];
-  const currentTime = now.toTimeString().slice(0,5);
+  const currentTime = now.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' });
 
   const fields = {
     'g-name': guest?.name || '',
@@ -758,8 +817,15 @@ window.saveGuestData = async function() {
     }
   }
 
-  // Room status & key
-  const newStatus = document.getElementById('modal-status').value;
+  // حالة الغرفة — إذا فيه بيانات نزيل يتحول تلقائي لمشغولة
+  // إلا إذا الموظف اختار محجوزة بنفسه
+  const selectedStatus = document.getElementById('modal-status').value;
+  const hasGuestData = guestData.name || guestData.checkinDate;
+  let newStatus = selectedStatus;
+  if (hasGuestData && selectedStatus === 'available') {
+    newStatus = 'occupied'; // تلقائي مشغولة عند إضافة بيانات نزيل
+    document.getElementById('modal-status').value = 'occupied';
+  }
   const keyWithReception = document.getElementById('modal-key-reception').checked;
 
   await dbSet(`guests/${roomId}`, guestData);
@@ -794,7 +860,7 @@ window.checkoutGuest = async function() {
         const visit = hist.visits.find(v => v.checkinDate === guest.checkinDate && v.roomId === roomId);
         if (visit) {
           visit.checkedOut = true;
-          visit.actualCheckout = new Date().toISOString().split('T')[0];
+          visit.actualCheckout = getEgyptTime().toISOString().split('T')[0];
         }
       }
       await dbSet(`guestHistory/${histKey}`, hist);
@@ -991,7 +1057,7 @@ window.convertReservationToCheckin = function(resId) {
     setTimeout(() => {
       document.getElementById('g-name').value = res.name;
       document.getElementById('g-phone').value = res.phone || '';
-      document.getElementById('g-checkin-date').value = res.date || new Date().toISOString().split('T')[0];
+      document.getElementById('g-checkin-date').value = res.date || getEgyptTime().toISOString().split('T')[0];
       document.getElementById('modal-status').value = 'occupied';
     }, 300);
   }
@@ -1056,7 +1122,7 @@ window.doSearch = function(query) {
           <div class="res-info">📅 ${guest.checkinDate || '-'} → ${guest.checkoutDate || '-'}</div>
           <div class="res-info">💰 إجمالي: ${(guest.total||0).toLocaleString('ar-EG')} ج | مدفوع: ${(guest.paid||0).toLocaleString('ar-EG')} ج | متبقي: ${(guest.remaining||0).toLocaleString('ar-EG')} ج</div>
         </div>
-      ` : '<div class="res-info" style="color:var(--available)">✅ الغرفة شاغرة</div>'}
+      ` : '<div class="res-info" style="color:var(--available)">✅ الغرفة متاحة</div>'}
       ${guest?.phone ? `<button class="btn-secondary btn-sm" style="margin-top:8px" onclick="loadGuestHistory('${guest.phone}')">📋 سجل النزيل</button>` : ''}
     </div>`;
   }).join('');
@@ -1112,7 +1178,7 @@ window.updateFinancials = function() {
   const guests = Object.values(AppState.guests || {});
   const history = Object.values(AppState.checkoutHistory || {});
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getEgyptTime().toISOString().split('T')[0];
   const thisMonth = today.substring(0, 7);
   const thisYear = today.substring(0, 4);
 
@@ -1650,8 +1716,8 @@ window.showToast = function(msg, type = 'info', duration = 3000) {
 // HELPERS
 // ============================================================
 function getStatusLabel(status) {
-  const map = { available: 'فارغة', occupied: 'شاغلة', reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة' };
-  return map[status] || 'فارغة';
+  const map = { available: 'متاحة', occupied: 'مشغولة', reserved: 'محجوزة', cleaning: 'جار التنظيف', maintenance: 'تحت الصيانة' };
+  return map[status] || 'متاحة';
 }
 
 // Make functions globally accessible

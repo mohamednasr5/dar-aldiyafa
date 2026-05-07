@@ -303,10 +303,42 @@ function loginSuccess(user) {
     user.role === 'admin' ? 'مدير' :
     user.role === 'manager' ? 'مدير' : 'موظف استقبال';
 
-  // Show/hide admin features
-  if (user.role !== 'superadmin' && user.role !== 'admin') {
+  // Enforce section permissions
+  if (user.role !== 'superadmin') {
+    const perms = user.permissions || {};
+
+    // Employees section - only superadmin
     const navEmp = document.getElementById('nav-employees');
     if (navEmp) navEmp.style.display = 'none';
+
+    // Financial section
+    const navFin = document.getElementById('nav-financial');
+    if (navFin) navFin.style.display = perms.financial ? '' : 'none';
+
+    const bottomFin = document.getElementById('bottom-nav-financial');
+    if (bottomFin) bottomFin.style.display = perms.financial ? '' : 'none';
+
+    // Rooms management
+    const navRooms = document.getElementById('nav-rooms');
+    if (navRooms) navRooms.style.display = perms.rooms ? '' : 'none';
+
+    // Guests access — hide room details if no guests perm
+    AppState.canViewGuests = perms.guests !== false;
+    AppState.canViewRooms = perms.rooms !== false;
+    AppState.canViewFinancial = !!perms.financial;
+  } else {
+    // Superadmin sees everything
+    AppState.canViewGuests = true;
+    AppState.canViewRooms = true;
+    AppState.canViewFinancial = true;
+    const navEmp = document.getElementById('nav-employees');
+    if (navEmp) navEmp.style.display = '';
+    const navFin = document.getElementById('nav-financial');
+    if (navFin) navFin.style.display = '';
+    const bottomFin = document.getElementById('bottom-nav-financial');
+    if (bottomFin) bottomFin.style.display = '';
+    const navRooms = document.getElementById('nav-rooms');
+    if (navRooms) navRooms.style.display = '';
   }
 
   // Transition to main app
@@ -319,6 +351,8 @@ function loginSuccess(user) {
   // Load data
   initDataListeners();
   updateFinancials();
+  requestNotificationPermission();
+  setTimeout(startCheckoutNotifications, 3000);
 }
 
 window.doLogout = function() {
@@ -380,6 +414,19 @@ function initDataListeners() {
 // NAVIGATION
 // ============================================================
 window.showSection = function(name) {
+  // Permission checks
+  if (name === 'financial' && AppState.currentUser?.role !== 'superadmin' && !AppState.canViewFinancial) {
+    showToast('ليس لديك صلاحية للوصول إلى التقارير المالية', 'error');
+    return;
+  }
+  if (name === 'employees' && AppState.currentUser?.role !== 'superadmin') {
+    showToast('ليس لديك صلاحية للوصول إلى قسم الموظفين', 'error');
+    return;
+  }
+  if (name === 'rooms' && AppState.currentUser?.role !== 'superadmin' && !AppState.canViewRooms) {
+    showToast('ليس لديك صلاحية للوصول إلى إدارة الغرف', 'error');
+    return;
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
@@ -435,13 +482,188 @@ function applyTheme(theme) {
 }
 
 // ============================================================
-// FLOOR FILTER
+// CHECKOUT NOTIFICATIONS SYSTEM
+// ============================================================
+let notificationCheckInterval = null;
+
+function startCheckoutNotifications() {
+  checkForCheckoutNotifications();
+  if (notificationCheckInterval) clearInterval(notificationCheckInterval);
+  notificationCheckInterval = setInterval(checkForCheckoutNotifications, 60 * 1000); // check every minute
+}
+
+function checkForCheckoutNotifications() {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  Object.entries(AppState.guests).forEach(([roomId, guest]) => {
+    if (!guest || !guest.checkoutDate) return;
+    const room = AppState.rooms[roomId];
+    if (!room || room.status !== 'occupied') return;
+
+    const checkoutDate = guest.checkoutDate;
+    const checkoutTime = guest.checkoutTime || '12:00';
+
+    // Parse checkout datetime
+    const checkoutDT = new Date(`${checkoutDate}T${checkoutTime}:00`);
+    const diffMs = checkoutDT - now;
+    const diffMins = Math.round(diffMs / 60000);
+
+    // Already notified key
+    const notifKey = `notified_${roomId}_${checkoutDate}`;
+    const alreadyNotified = sessionStorage.getItem(notifKey);
+
+    // Trigger notification: overdue (past checkout) or within 30 min
+    if (!alreadyNotified && (diffMins <= 0 || (diffMins > 0 && diffMins <= 30))) {
+      sessionStorage.setItem(notifKey, '1');
+      showCheckoutNotification(roomId, room, guest, diffMins);
+    }
+  });
+}
+
+function showCheckoutNotification(roomId, room, guest, diffMins) {
+  // Remove any existing checkout notification for this room
+  const existingId = `checkout-notif-${roomId}`;
+  const existing = document.getElementById(existingId);
+  if (existing) existing.remove();
+
+  const isOverdue = diffMins <= 0;
+  const timeText = isOverdue
+    ? `تجاوز وقت المغادرة بـ ${Math.abs(diffMins)} دقيقة`
+    : `متبقي ${diffMins} دقيقة على موعد المغادرة`;
+
+  const notif = document.createElement('div');
+  notif.id = existingId;
+  notif.className = `checkout-notification ${isOverdue ? 'overdue' : 'warning'}`;
+  notif.innerHTML = `
+    <div class="checkout-notif-header">
+      <span class="checkout-notif-icon">${isOverdue ? '🚨' : '⏰'}</span>
+      <div class="checkout-notif-title">
+        <strong>${isOverdue ? 'انتهى وقت الإقامة!' : 'تنبيه: موعد المغادرة قريب'}</strong>
+        <div class="checkout-notif-subtitle">الغرفة ${room.number} ${room.type === 'vip' ? '👑' : ''} | ${guest.name || 'نزيل'}</div>
+      </div>
+      <button class="checkout-notif-close" onclick="dismissCheckoutNotif('${existingId}')">✕</button>
+    </div>
+    <div class="checkout-notif-time">${timeText}</div>
+    <div class="checkout-notif-days">
+      عدد الأيام المحجوزة: ${guest.days || 0} يوم &nbsp;|&nbsp; تاريخ المغادرة: ${guest.checkoutDate} ${guest.checkoutTime || '12:00'}
+    </div>
+    <div class="checkout-notif-actions">
+      ${guest.phone ? `
+        <button class="btn-call-notif" onclick="callGuestFromNotif('${guest.phone}')">
+          📞 اتصال بالنزيل
+        </button>
+        <button class="btn-whatsapp-notif" onclick="whatsappGuestFromNotif('${guest.phone}')">
+          💬 واتساب
+        </button>
+      ` : ''}
+      <button class="btn-checkout-notif" onclick="quickCheckoutFromNotif('${roomId}', '${existingId}')">
+        🚪 تم تسجيل الخروج
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(notif);
+
+  // Auto-dismiss after 2 minutes if not overdue
+  if (!isOverdue) {
+    setTimeout(() => {
+      const el = document.getElementById(existingId);
+      if (el) el.remove();
+    }, 120000);
+  }
+
+  // Browser notification if permitted
+  if (Notification.permission === 'granted') {
+    new Notification(`🚨 دار الضيافة - الغرفة ${room.number}`, {
+      body: `${guest.name || 'النزيل'} - ${timeText}`,
+      icon: 'assets/icon-192.png'
+    });
+  }
+}
+
+window.dismissCheckoutNotif = function(notifId) {
+  const el = document.getElementById(notifId);
+  if (el) el.classList.add('dismissing');
+  setTimeout(() => { if (el) el.remove(); }, 300);
+};
+
+window.callGuestFromNotif = function(phone) {
+  window.open(`tel:${phone}`);
+};
+
+window.whatsappGuestFromNotif = function(phone) {
+  const fullPhone = '2' + phone.replace(/^0/, '');
+  window.open(`https://wa.me/${fullPhone}`, '_blank');
+};
+
+window.quickCheckoutFromNotif = async function(roomId, notifId) {
+  const room = AppState.rooms[roomId];
+  const guest = AppState.guests[roomId];
+  if (!room || !guest) return;
+
+  if (!confirm(`تأكيد تسجيل خروج ${guest.name || 'النزيل'} من الغرفة ${room.number}؟`)) return;
+
+  // Archive guest
+  if (guest) {
+    await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
+  }
+
+  // Free room immediately → available
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
+  await dbRemove(`guests/${roomId}`);
+
+  logActivity('checkout', `خروج سريع من الغرفة ${room.number}: ${guest.name}`, '🚪');
+  showToast(`✅ تم تسجيل خروج ${guest.name || ''} والغرفة ${room.number} متاحة الآن`, 'success');
+
+  const el = document.getElementById(notifId);
+  if (el) el.remove();
+};
+
+// Request notification permission on login
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// ============================================================
+// SMART ROOM FILTER (Dashboard + Rooms section)
 // ============================================================
 window.filterFloor = function(floor, btn) {
   AppState.currentFilter = floor;
   document.querySelectorAll('.floor-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderRooms();
+};
+
+// Smart filter state
+AppState.smartFilter = {
+  status: 'all',   // all | available | occupied | reserved | cleaning | maintenance
+  type: 'all',     // all | vip | regular
+  floor: 'all'     // all | 1 | 2 | 3 | 4 | 5
+};
+
+window.applySmartFilter = function(filterType, value, btn) {
+  AppState.smartFilter[filterType] = value;
+
+  // Update active button in its group
+  const group = btn.closest('.smart-filter-group');
+  if (group) {
+    group.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  renderRoomsTable();
+};
+
+window.resetSmartFilter = function() {
+  AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
+  document.querySelectorAll('.filter-chip').forEach(b => {
+    b.classList.remove('active');
+    if (b.dataset.value === 'all') b.classList.add('active');
+  });
+  renderRoomsTable();
 };
 
 // ============================================================
@@ -564,13 +786,29 @@ function setText(id, val) {
 // ROOMS TABLE
 // ============================================================
 function updateRoomsTable() {
+  renderRoomsTable();
+}
+
+function renderRoomsTable() {
   const tbody = document.getElementById('rooms-table-body');
   if (!tbody) return;
 
-  const rooms = Object.entries(AppState.rooms);
+  const sf = AppState.smartFilter || { status: 'all', type: 'all', floor: 'all' };
+  let rooms = Object.entries(AppState.rooms);
   if (!rooms.length) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">لا توجد غرف</td></tr>`;
     return;
+  }
+
+  // Apply smart filters
+  if (sf.status !== 'all') {
+    rooms = rooms.filter(([,r]) => (r.status || 'available') === sf.status);
+  }
+  if (sf.type !== 'all') {
+    rooms = rooms.filter(([,r]) => sf.type === 'vip' ? r.type === 'vip' : r.type !== 'vip');
+  }
+  if (sf.floor !== 'all') {
+    rooms = rooms.filter(([,r]) => String(r.floor) === String(sf.floor));
   }
 
   rooms.sort(([,a],[,b]) => {
@@ -578,13 +816,24 @@ function updateRoomsTable() {
     return String(a.number).localeCompare(String(b.number), 'ar', {numeric:true});
   });
 
+  const countEl = document.getElementById('rooms-filter-count');
+
+  if (!rooms.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">لا توجد غرف تطابق الفلتر المحدد</td></tr>`;
+    if (countEl) countEl.textContent = '0 غرفة';
+    return;
+  }
+
+  if (countEl) countEl.textContent = `${rooms.length} غرفة`;
+
+  const statusMap = {
+    available: ['badge-available','شاغرة ✅'], occupied: ['badge-occupied','مشغولة 🔴'],
+    reserved: ['badge-reserved','محجوزة 🟠'], cleaning: ['badge-cleaning','تنظيف 🔵'],
+    maintenance: ['badge-maintenance','صيانة ⚙️']
+  };
+
   tbody.innerHTML = rooms.map(([id, room]) => {
     const guest = AppState.guests[id];
-    const statusMap = {
-      available: ['badge-available','شاغرة'], occupied: ['badge-occupied','مشغولة'],
-      reserved: ['badge-reserved','محجوزة'], cleaning: ['badge-cleaning','تنظيف'],
-      maintenance: ['badge-maintenance','صيانة']
-    };
     const [badgeClass, label] = statusMap[room.status] || ['badge-available','شاغرة'];
 
     return `
@@ -602,6 +851,8 @@ function updateRoomsTable() {
         </div>
       </td>
     </tr>`;
+  }).join('');
+}
   }).join('');
 }
 
@@ -766,11 +1017,11 @@ window.checkoutGuest = async function() {
     await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
   }
 
-  await dbUpdate(`rooms/${roomId}`, { status: 'cleaning', keyWithReception: false });
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
   await dbRemove(`guests/${roomId}`);
 
   logActivity('checkout', `خروج من الغرفة ${room?.number}: ${guest?.name}`, '🚪');
-  showToast(`تم تسجيل خروج ${guest?.name || ''} بنجاح`, 'success');
+  showToast(`✅ تم تسجيل خروج ${guest?.name || ''} — الغرفة متاحة الآن`, 'success');
   closeModal('guest-modal');
 };
 
@@ -1285,6 +1536,7 @@ function renderEmployees() {
   if (!container) return;
 
   const roleLabels = { receptionist: 'موظف استقبال', manager: 'مدير', admin: 'مدير النظام', superadmin: 'مدير عام' };
+  const permLabels = { rooms: 'الغرف', guests: 'النزلاء', financial: 'المالية', employees: 'الموظفون' };
 
   // Always show master admin
   const masterCard = `
@@ -1293,6 +1545,12 @@ function renderEmployees() {
       <div class="emp-name">${MASTER_ADMIN.name}</div>
       <div class="emp-username">@${MASTER_ADMIN.username}</div>
       <div class="emp-role"><span class="badge badge-vip">مدير عام</span></div>
+      <div class="emp-perms">
+        <span class="perm-tag active">الغرف</span>
+        <span class="perm-tag active">النزلاء</span>
+        <span class="perm-tag active">المالية</span>
+        <span class="perm-tag active">الموظفون</span>
+      </div>
     </div>`;
 
   const emps = Object.entries(AppState.employees || {});
@@ -1301,18 +1559,50 @@ function renderEmployees() {
     return;
   }
 
-  container.innerHTML = masterCard + emps.map(([id, emp]) => `
+  container.innerHTML = masterCard + emps.map(([id, emp]) => {
+    const perms = emp.permissions || {};
+    const permTags = Object.entries(permLabels).map(([key, label]) =>
+      `<span class="perm-tag ${perms[key] ? 'active' : 'inactive'}">${perms[key] ? '✅' : '❌'} ${label}</span>`
+    ).join('');
+
+    return `
     <div class="employee-card">
       <div class="emp-avatar">👤</div>
       <div class="emp-name">${emp.name}</div>
       <div class="emp-username">@${emp.username}</div>
       <div class="emp-role"><span class="badge badge-${emp.role === 'admin' ? 'vip' : 'reserved'}">${roleLabels[emp.role] || emp.role}</span></div>
+      <div class="emp-perms">${permTags}</div>
       <div class="emp-actions">
+        <button class="btn-secondary btn-sm" onclick="showEditEmployeeModal('${id}')">✏️ تعديل</button>
         <button class="btn-danger btn-sm" onclick="deleteEmployee('${id}')">🗑️ حذف</button>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
+
+window.showEditEmployeeModal = function(empId) {
+  if (AppState.currentUser?.role !== 'superadmin') {
+    showToast('ليس لديك صلاحية لتعديل الموظفين', 'error');
+    return;
+  }
+  const emp = AppState.employees[empId];
+  if (!emp) return;
+
+  document.getElementById('emp-modal-title').textContent = 'تعديل بيانات الموظف';
+  document.getElementById('edit-emp-id').value = empId;
+  document.getElementById('emp-name').value = emp.name || '';
+  document.getElementById('emp-username').value = emp.username || '';
+  document.getElementById('emp-password').value = emp.password || '';
+  document.getElementById('emp-role').value = emp.role || 'receptionist';
+
+  const perms = emp.permissions || {};
+  document.getElementById('perm-rooms').checked = perms.rooms !== false;
+  document.getElementById('perm-guests').checked = perms.guests !== false;
+  document.getElementById('perm-financial').checked = !!perms.financial;
+  document.getElementById('perm-employees').checked = !!perms.employees;
+
+  openModal('employee-modal');
+};
 
 window.deleteEmployee = async function(empId) {
   const emp = AppState.employees[empId];
