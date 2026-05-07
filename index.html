@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#0a0a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="دار الضيافة">
+  <meta name="description" content="نظام إدارة فندق دار الضيافة بالمنصورة">
+  <title>دار الضيافة بالمنصورة</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@300;400;600;700;900&family=Playfair+Display:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-mode">
+
+<!-- Animated Background Particles -->
+<div id="particles-bg"></div>
+
+<!-- Login Screen -->
+<div id="login-screen" class="login-screen active">
+  <div class="login-container">
+    <div class="login-glow"></div>
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-ring">
+          <span class="logo-icon">🏨</span>
+        </div>
+        <h1 class="hotel-name-ar">دار الضيافة</h1>
+        <p class="hotel-name-en">Dar Al Diyafa Mansoura</p>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label>اسم المستخدم</label>
+          <div class="input-wrapper">
+            <span class="input-icon">👤</span>
+            <input type="text" id="login-username" placeholder="أدخل اسم المستخدم" autocomplete="username">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>كلمة المرور</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="login-password" placeholder="أدخل كلمة المرور" autocomplete="current-password">
+          </div>
+        </div>
+        <button class="btn-login" onclick="doLogin()">
+          <span>دخول</span>
+          <div class="btn-shine"></div>
+        </button>
+        <div id="login-error" class="login-error hidden"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="main-app" class="main-app hidden">
+
+  <!-- Top Navigation -->
+  <nav class="top-nav">
+    <div class="nav-right">
+      <button class="menu-toggle" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="hotel-brand">
+        <span class="brand-icon">🏨</span>
+        <div>
+          <div class="brand-name">دار الضيافة</div>
+          <div class="brand-sub">Dar Al Diyafa Mansoura</div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-center">
+      <div class="live-clock" id="live-clock">--:--:--</div>
+      <div class="live-date" id="live-date">---</div>
+    </div>
+    <div class="nav-left">
+      <div class="online-status" id="online-status">
+        <span class="status-dot online"></span>
+        <span>متصل</span>
+      </div>
+      <div class="user-badge">
+        <span class="user-avatar">👤</span>
+        <span id="current-user-name">المدير</span>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="تبديل المظهر">🌙</button>
+      <button class="btn-logout" onclick="doLogout()" title="تسجيل الخروج">🚪</button>
+    </div>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-profile">
+      <div class="profile-avatar">👤</div>
+      <div class="profile-info">
+        <div class="profile-name" id="sidebar-user-name">المدير العام</div>
+        <div class="profile-role" id="sidebar-user-role">مدير النظام</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" onclick="showSection('dashboard')">
+        <span class="nav-icon">🏠</span><span>لوحة التحكم</span>
+      </a>
+      <a class="nav-item" onclick="showSection('rooms')">
+        <span class="nav-icon">🚪</span><span>إدارة الغرف</span>
+      </a>
+      <a class="nav-item" onclick="showSection('reservations')">
+        <span class="nav-icon">📅</span><span>الحجوزات</span>
+      </a>
+      <a class="nav-item" onclick="showSection('search')">
+        <span class="nav-icon">🔍</span><span>البحث</span>
+      </a>
+      <a class="nav-item" onclick="showSection('financial')">
+        <span class="nav-icon">💰</span><span>التقارير المالية</span>
+      </a>
+      <a class="nav-item" onclick="showSection('employees')" id="nav-employees">
+        <span class="nav-icon">👥</span><span>الموظفون</span>
+      </a>
+      <a class="nav-item" onclick="showSection('activity')">
+        <span class="nav-icon">📋</span><span>سجل النشاط</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-add-room" onclick="showAddRoomModal()">
+        <span>➕</span> إضافة غرفة
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="content-area" id="content-area">
+
+    <!-- Dashboard Section -->
+    <section id="section-dashboard" class="section active">
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card available">
+          <div class="stat-icon">✅</div>
+          <div class="stat-info">
+            <div class="stat-num" id="stat-available">0</div>
+            <div class="stat-label">شاغرة</div>
+          </div>
+        </div>
+        <div class="stat-card occupied">
+          <div class="stat-icon">🔴</div>
+          <div class="stat-info">
+            <div class="stat-num" id="stat-occupied">0</div>
+            <div class="stat-label">مشغولة</div>
+          </div>
+        </div>
+        <div class="stat-card reserved">
+          <div class="stat-icon">🟠</div>
+          <div class="stat-info">
+            <div class="stat-num" id="stat-reserved">0</div>
+            <div class="stat-label">محجوزة</div>
+          </div>
+        </div>
+        <div class="stat-card vip">
+          <div class="stat-icon">👑</div>
+          <div class="stat-info">
+            <div class="stat-num" id="stat-vip">0</div>
+            <div class="stat-label">VIP</div>
+          </div>
+        </div>
+        <div class="stat-card revenue">
+          <div class="stat-icon">💵</div>
+          <div class="stat-info">
+            <div class="stat-num" id="stat-revenue">0</div>
+            <div class="stat-label">إيرادات اليوم (ج)</div>
+          </div>
+        </div>
+        <div class="stat-card total">
+          <div class="stat-icon">🏨</div>
+          <div class="stat-info">
+            <div class="stat-num" id="stat-total">0</div>
+            <div class="stat-label">إجمالي الغرف</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floor Filter -->
+      <div class="floor-filter">
+        <button class="floor-btn active" onclick="filterFloor('all', this)">الكل</button>
+        <button class="floor-btn" onclick="filterFloor('1', this)">الدور الأول</button>
+        <button class="floor-btn" onclick="filterFloor('2', this)">الدور الثاني</button>
+        <button class="floor-btn" onclick="filterFloor('3', this)">الدور الثالث</button>
+        <button class="floor-btn" onclick="filterFloor('4', this)">الدور الرابع</button>
+        <button class="floor-btn" onclick="filterFloor('5', this)">الدور الخامس</button>
+      </div>
+
+      <!-- Rooms Grid -->
+      <div class="rooms-grid" id="rooms-grid">
+        <div class="loading-rooms">
+          <div class="spinner"></div>
+          <p>جاري تحميل الغرف...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rooms Management Section -->
+    <section id="section-rooms" class="section">
+      <div class="section-header">
+        <h2>إدارة الغرف</h2>
+        <button class="btn-primary" onclick="showAddRoomModal()">➕ إضافة غرفة جديدة</button>
+      </div>
+      <div class="rooms-table-container">
+        <table class="rooms-table" id="rooms-table">
+          <thead>
+            <tr>
+              <th>رقم الغرفة</th>
+              <th>النوع</th>
+              <th>الدور</th>
+              <th>الحالة</th>
+              <th>النزيل</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="rooms-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Reservations Section -->
+    <section id="section-reservations" class="section">
+      <div class="section-header">
+        <h2>الحجوزات</h2>
+        <button class="btn-primary" onclick="showReservationModal()">➕ حجز جديد</button>
+      </div>
+      <div id="reservations-list" class="reservations-list"></div>
+    </section>
+
+    <!-- Search Section -->
+    <section id="section-search" class="section">
+      <div class="search-hero">
+        <h2>🔍 البحث المتقدم</h2>
+        <div class="search-input-group">
+          <input type="text" id="main-search" placeholder="ابحث برقم الغرفة، اسم النزيل، أو رقم الهاتف..." oninput="doSearch(this.value)">
+          <button onclick="doSearch(document.getElementById('main-search').value)">بحث</button>
+        </div>
+      </div>
+      <div id="search-results" class="search-results"></div>
+    </section>
+
+    <!-- Financial Section -->
+    <section id="section-financial" class="section">
+      <div class="section-header">
+        <h2>💰 التقارير المالية</h2>
+        <div class="date-filter">
+          <input type="date" id="fin-from" onchange="updateFinancials()">
+          <span>إلى</span>
+          <input type="date" id="fin-to" onchange="updateFinancials()">
+          <button class="btn-primary" onclick="exportFinancialReport()">📊 تصدير</button>
+        </div>
+      </div>
+      <div class="financial-stats">
+        <div class="fin-card">
+          <div class="fin-icon">📅</div>
+          <div class="fin-amount" id="fin-daily">0 ج</div>
+          <div class="fin-label">إيرادات اليوم</div>
+        </div>
+        <div class="fin-card">
+          <div class="fin-icon">📆</div>
+          <div class="fin-amount" id="fin-monthly">0 ج</div>
+          <div class="fin-label">إيرادات الشهر</div>
+        </div>
+        <div class="fin-card">
+          <div class="fin-icon">🗓️</div>
+          <div class="fin-amount" id="fin-yearly">0 ج</div>
+          <div class="fin-label">إيرادات السنة</div>
+        </div>
+        <div class="fin-card">
+          <div class="fin-icon">💳</div>
+          <div class="fin-amount" id="fin-remaining">0 ج</div>
+          <div class="fin-label">مبالغ متبقية</div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="revenue-chart"></canvas>
+      </div>
+      <div id="financial-transactions" class="transactions-list"></div>
+    </section>
+
+    <!-- Employees Section -->
+    <section id="section-employees" class="section">
+      <div class="section-header">
+        <h2>👥 إدارة الموظفين</h2>
+        <button class="btn-primary" onclick="showAddEmployeeModal()">➕ إضافة موظف</button>
+      </div>
+      <div id="employees-list" class="employees-list"></div>
+    </section>
+
+    <!-- Activity Log Section -->
+    <section id="section-activity" class="section">
+      <div class="section-header">
+        <h2>📋 سجل النشاط</h2>
+        <button class="btn-secondary" onclick="clearOldLogs()">🗑️ حذف القديم</button>
+      </div>
+      <div id="activity-log" class="activity-log"></div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation (Mobile) -->
+  <nav class="bottom-nav">
+    <a class="bottom-nav-item active" onclick="showSection('dashboard')">
+      <span>🏠</span><span>الرئيسية</span>
+    </a>
+    <a class="bottom-nav-item" onclick="showSection('reservations')">
+      <span>📅</span><span>الحجوزات</span>
+    </a>
+    <a class="bottom-nav-item" onclick="showSection('search')">
+      <span>🔍</span><span>البحث</span>
+    </a>
+    <a class="bottom-nav-item" onclick="showSection('financial')">
+      <span>💰</span><span>المالية</span>
+    </a>
+    <a class="bottom-nav-item" onclick="showSection('activity')">
+      <span>📋</span><span>النشاط</span>
+    </a>
+  </nav>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>تصميم وتطوير بـ ❤️ بواسطة المهندس / محمد حماد</p>
+    <a href="https://www.facebook.com/en.mohamed.nasr" target="_blank" class="fb-link">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      Facebook
+    </a>
+  </footer>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Guest Modal -->
+<div id="guest-modal" class="modal-overlay hidden">
+  <div class="modal-container modal-large">
+    <div class="modal-header">
+      <h3 id="modal-room-title">الغرفة</h3>
+      <div class="modal-actions">
+        <button class="btn-invoice" onclick="generateInvoice()">🧾 فاتورة</button>
+        <button class="btn-checkout" onclick="checkoutGuest()" id="btn-checkout" style="display:none">🚪 تسجيل خروج</button>
+        <button class="modal-close" onclick="closeModal('guest-modal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-room-id">
+      
+      <div class="modal-status-bar">
+        <label>حالة الغرفة:</label>
+        <select id="modal-status" onchange="updateRoomStatusFromModal()">
+          <option value="available">شاغرة ✅</option>
+          <option value="occupied">مشغولة 🔴</option>
+          <option value="reserved">محجوزة 🟠</option>
+          <option value="cleaning">تنظيف 🔵</option>
+          <option value="maintenance">صيانة ⚙️</option>
+        </select>
+        <label style="margin-right:20px">مفتاح مع الاستقبال:</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="modal-key-reception">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>الاسم الكامل *</label>
+          <input type="text" id="g-name" placeholder="اسم النزيل">
+        </div>
+        <div class="form-group">
+          <label>المهنة</label>
+          <input type="text" id="g-profession" placeholder="المهنة">
+        </div>
+        <div class="form-group">
+          <label>رقم الهاتف</label>
+          <div class="phone-group">
+            <input type="tel" id="g-phone" placeholder="01xxxxxxxxx">
+            <button class="btn-call" onclick="callGuest()" title="اتصال">📞</button>
+            <button class="btn-whatsapp" onclick="openWhatsApp()" title="واتساب">💬</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>رقم واتساب</label>
+          <div class="phone-group">
+            <input type="tel" id="g-whatsapp" placeholder="01xxxxxxxxx">
+            <button class="btn-whatsapp" onclick="openWhatsAppAlt()" title="واتساب">💬</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>الرقم القومي</label>
+          <input type="text" id="g-national-id" placeholder="الرقم القومي">
+        </div>
+        <div class="form-group">
+          <label>ملاحظات</label>
+          <input type="text" id="g-notes" placeholder="أي ملاحظات">
+        </div>
+        <div class="form-group">
+          <label>تاريخ الوصول</label>
+          <input type="date" id="g-checkin-date" onchange="calcDays()">
+        </div>
+        <div class="form-group">
+          <label>وقت الوصول</label>
+          <input type="time" id="g-checkin-time">
+        </div>
+        <div class="form-group">
+          <label>تاريخ المغادرة</label>
+          <input type="date" id="g-checkout-date" onchange="calcDays()">
+        </div>
+        <div class="form-group">
+          <label>وقت المغادرة</label>
+          <input type="time" id="g-checkout-time" value="12:00">
+        </div>
+        <div class="form-group">
+          <label>عدد الأيام</label>
+          <input type="number" id="g-days" placeholder="0" onchange="calcTotal()">
+        </div>
+        <div class="form-group">
+          <label>السعر لليلة (ج)</label>
+          <input type="number" id="g-price-per-night" placeholder="0" oninput="calcTotal()">
+        </div>
+        <div class="form-group highlight-field">
+          <label>الإجمالي (ج)</label>
+          <input type="number" id="g-total" placeholder="0" readonly>
+        </div>
+        <div class="form-group">
+          <label>المدفوع (ج)</label>
+          <input type="number" id="g-paid" placeholder="0" oninput="calcRemaining()">
+        </div>
+        <div class="form-group highlight-field remaining-field">
+          <label>المتبقي (ج)</label>
+          <input type="number" id="g-remaining" placeholder="0" readonly>
+        </div>
+        <div class="form-group highlight-field days-field">
+          <label>الأيام المتبقية</label>
+          <input type="number" id="g-remaining-days" placeholder="0" readonly>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary btn-save" onclick="saveGuestData()">💾 حفظ البيانات</button>
+      <button class="btn-secondary" onclick="closeModal('guest-modal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Room Modal -->
+<div id="room-modal" class="modal-overlay hidden">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h3 id="room-modal-title">إضافة غرفة جديدة</h3>
+      <button class="modal-close" onclick="closeModal('room-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-room-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>رقم الغرفة *</label>
+          <input type="text" id="room-number" placeholder="مثال: 101">
+        </div>
+        <div class="form-group">
+          <label>نوع الغرفة</label>
+          <select id="room-type">
+            <option value="regular">عادية</option>
+            <option value="vip">VIP فاخرة</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>الدور</label>
+          <select id="room-floor">
+            <option value="1">الدور الأول (100s)</option>
+            <option value="2">الدور الثاني (200s)</option>
+            <option value="3">الدور الثالث (300s)</option>
+            <option value="4">الدور الرابع (400s)</option>
+            <option value="5">الدور الخامس (500s)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>الحالة الابتدائية</label>
+          <select id="room-init-status">
+            <option value="available">شاغرة</option>
+            <option value="maintenance">صيانة</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" onclick="saveRoom()">💾 حفظ</button>
+      <button class="btn-secondary" onclick="closeModal('room-modal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reservation Modal -->
+<div id="reservation-modal" class="modal-overlay hidden">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h3>حجز جديد</h3>
+      <button class="modal-close" onclick="closeModal('reservation-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>اسم النزيل *</label>
+          <input type="text" id="res-name" placeholder="الاسم الكامل">
+        </div>
+        <div class="form-group">
+          <label>رقم الهاتف</label>
+          <input type="tel" id="res-phone" placeholder="01xxxxxxxxx">
+        </div>
+        <div class="form-group">
+          <label>رقم الغرفة</label>
+          <select id="res-room"></select>
+        </div>
+        <div class="form-group">
+          <label>تاريخ الوصول المتوقع</label>
+          <input type="date" id="res-date">
+        </div>
+        <div class="form-group">
+          <label>وقت الوصول</label>
+          <input type="time" id="res-time">
+        </div>
+        <div class="form-group">
+          <label>ملاحظات</label>
+          <input type="text" id="res-notes" placeholder="أي ملاحظات">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" onclick="saveReservation()">💾 حجز</button>
+      <button class="btn-secondary" onclick="closeModal('reservation-modal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee Modal -->
+<div id="employee-modal" class="modal-overlay hidden">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h3 id="emp-modal-title">إضافة موظف</h3>
+      <button class="modal-close" onclick="closeModal('employee-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-emp-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>الاسم الكامل *</label>
+          <input type="text" id="emp-name" placeholder="اسم الموظف">
+        </div>
+        <div class="form-group">
+          <label>اسم المستخدم *</label>
+          <input type="text" id="emp-username" placeholder="username">
+        </div>
+        <div class="form-group">
+          <label>كلمة المرور *</label>
+          <input type="password" id="emp-password" placeholder="كلمة المرور">
+        </div>
+        <div class="form-group">
+          <label>الصلاحيات</label>
+          <select id="emp-role">
+            <option value="receptionist">موظف استقبال</option>
+            <option value="manager">مدير</option>
+            <option value="admin">مدير النظام</option>
+          </select>
+        </div>
+      </div>
+      <div class="permissions-grid">
+        <label><input type="checkbox" id="perm-rooms" checked> إدارة الغرف</label>
+        <label><input type="checkbox" id="perm-guests" checked> إدارة النزلاء</label>
+        <label><input type="checkbox" id="perm-financial"> التقارير المالية</label>
+        <label><input type="checkbox" id="perm-employees"> إدارة الموظفين</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" onclick="saveEmployee()">💾 حفظ</button>
+      <button class="btn-secondary" onclick="closeModal('employee-modal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+<div id="invoice-modal" class="modal-overlay hidden">
+  <div class="modal-container modal-large">
+    <div class="modal-header">
+      <h3>🧾 الفاتورة</h3>
+      <div class="modal-actions">
+        <button class="btn-print" onclick="printInvoice()">🖨️ طباعة</button>
+        <button class="btn-whatsapp" onclick="sendInvoiceWhatsApp()">💬 واتساب</button>
+        <button class="modal-close" onclick="closeModal('invoice-modal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="invoice-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- Scripts -->
+<script src="firebase.js" type="module"></script>
+</body>
+</html>
