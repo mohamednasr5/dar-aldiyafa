@@ -353,11 +353,11 @@
       <div class="modal-status-bar">
         <label>حالة الغرفة:</label>
         <select id="modal-status" onchange="updateRoomStatusFromModal()">
-          <option value="available">شاغرة ✅</option>
-          <option value="occupied">مشغولة 🔴</option>
-          <option value="reserved">محجوزة 🟠</option>
-          <option value="cleaning">تنظيف 🔵</option>
-          <option value="maintenance">صيانة ⚙️</option>
+          <option value="available">🟢 فارغة</option>
+          <option value="occupied">🔴 شاغلة</option>
+          <option value="reserved">🟠 محجوزة</option>
+          <option value="cleaning">🔵 تنظيف</option>
+          <option value="maintenance">⚙️ صيانة</option>
         </select>
         <label style="margin-right:20px">مفتاح مع الاستقبال:</label>
         <label class="toggle-switch">
@@ -481,8 +481,10 @@
         <div class="form-group">
           <label>الحالة الابتدائية</label>
           <select id="room-init-status">
-            <option value="available">شاغرة</option>
-            <option value="maintenance">صيانة</option>
+            <option value="available">🟢 فارغة</option>
+            <option value="occupied">🔴 شاغلة</option>
+            <option value="maintenance">⚙️ صيانة</option>
+            <option value="reserved">🟠 محجوزة</option>
           </select>
         </div>
       </div>

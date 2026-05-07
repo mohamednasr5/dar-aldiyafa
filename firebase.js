@@ -316,6 +316,14 @@ function loginSuccess(user) {
   // Log login
   logActivity('login', `تسجيل دخول: ${user.name}`, '🔑');
 
+  // Welcome message
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'صباح الخير' : hour < 17 ? 'مساء الخير' : 'مساء النور';
+  const roleLabel = user.role === 'superadmin' ? 'مدير النظام' : user.role === 'admin' ? 'مدير' : 'موظف استقبال';
+  setTimeout(() => {
+    showToast(`${greeting}، ${user.name} 👋\nأهلاً بك في نظام دار الضيافة — ${roleLabel}`, 'success', 5000);
+  }, 600);
+
   // Load data
   initDataListeners();
   updateFinancials();
@@ -476,11 +484,11 @@ function renderRooms() {
   grid.innerHTML = filtered.map(([id, room]) => {
     const guest = AppState.guests[id];
     const statusLabels = {
-      available: 'شاغرة', occupied: 'مشغولة',
+      available: 'فارغة', occupied: 'شاغلة',
       reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة'
     };
     const statusEmojis = {
-      available: '✅', occupied: '🔴', reserved: '🟠', cleaning: '🔵', maintenance: '⚙️'
+      available: '🟢', occupied: '🔴', reserved: '🟠', cleaning: '🔵', maintenance: '⚙️'
     };
 
     const remainingDays = guest?.checkoutDate ?
@@ -581,7 +589,7 @@ function updateRoomsTable() {
   tbody.innerHTML = rooms.map(([id, room]) => {
     const guest = AppState.guests[id];
     const statusMap = {
-      available: ['badge-available','شاغرة'], occupied: ['badge-occupied','مشغولة'],
+      available: ['badge-available','فارغة'], occupied: ['badge-occupied','شاغلة'],
       reserved: ['badge-reserved','محجوزة'], cleaning: ['badge-cleaning','تنظيف'],
       maintenance: ['badge-maintenance','صيانة']
     };
@@ -626,6 +634,10 @@ window.openRoomModal = function(roomId) {
   if (keyCb) keyCb.checked = room.keyWithReception || false;
 
   // Guest data
+  const now = new Date();
+  const todayDate = now.toISOString().split('T')[0];
+  const currentTime = now.toTimeString().slice(0,5);
+
   const fields = {
     'g-name': guest?.name || '',
     'g-profession': guest?.profession || '',
@@ -633,8 +645,8 @@ window.openRoomModal = function(roomId) {
     'g-whatsapp': guest?.whatsapp || '',
     'g-national-id': guest?.nationalId || '',
     'g-notes': guest?.notes || '',
-    'g-checkin-date': guest?.checkinDate || '',
-    'g-checkin-time': guest?.checkinTime || '',
+    'g-checkin-date': guest?.checkinDate || todayDate,
+    'g-checkin-time': guest?.checkinTime || currentTime,
     'g-checkout-date': guest?.checkoutDate || '',
     'g-checkout-time': guest?.checkoutTime || '12:00',
     'g-days': guest?.days || '',
@@ -1587,7 +1599,7 @@ document.addEventListener('keydown', e => {
 // ============================================================
 // TOAST
 // ============================================================
-window.showToast = function(msg, type = 'info') {
+window.showToast = function(msg, type = 'info', duration = 3000) {
   const toast = document.getElementById('toast');
   if (!toast) return;
   toast.textContent = msg;
@@ -1596,15 +1608,15 @@ window.showToast = function(msg, type = 'info') {
   clearTimeout(AppState.toastTimer);
   AppState.toastTimer = setTimeout(() => {
     toast.classList.add('hidden');
-  }, 3000);
+  }, duration);
 };
 
 // ============================================================
 // HELPERS
 // ============================================================
 function getStatusLabel(status) {
-  const map = { available: 'شاغرة', occupied: 'مشغولة', reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة' };
-  return map[status] || 'شاغرة';
+  const map = { available: 'فارغة', occupied: 'شاغلة', reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة' };
+  return map[status] || 'فارغة';
 }
 
 // Make functions globally accessible
