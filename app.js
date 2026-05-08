@@ -600,7 +600,7 @@ window.callGuestFromNotif = function(phone) {
 };
 
 window.whatsappGuestFromNotif = function(phone) {
-  const fullPhone = '2' + phone.replace(/^0/, '');
+  const fullPhone = '20' + phone.replace(/^0/, '');
   window.open(`https://wa.me/${fullPhone}`, '_blank');
 };
 
@@ -617,7 +617,7 @@ window.quickCheckoutFromNotif = async function(roomId, notifId) {
   }
 
   // Free room immediately → available
-  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: true });
   await dbRemove(`guests/${roomId}`);
 
   logActivity('checkout', `خروج سريع من الغرفة ${room.number}: ${guest.name}`, '🚪');
@@ -877,7 +877,14 @@ window.openRoomModal = function(roomId) {
 
   // Key
   const keyCb = document.getElementById('modal-key-reception');
-  if (keyCb) keyCb.checked = room.keyWithReception || false;
+  if (keyCb) {
+    // If room is available, default key to be with reception (with the house)
+    if (room.status === 'available' || !room.status) {
+      keyCb.checked = room.keyWithReception !== undefined ? room.keyWithReception : true;
+    } else {
+      keyCb.checked = room.keyWithReception || false;
+    }
+  }
 
   // Guest data
   const fields = {
@@ -903,6 +910,10 @@ window.openRoomModal = function(roomId) {
     const el = document.getElementById(id);
     if (el) el.value = val;
   });
+
+  // Load companions
+  companions = Array.isArray(guest?.companions) ? guest.companions.map((c, i) => ({ id: Date.now() + i, name: c.name || '', nationalId: c.nationalId || '' })) : [];
+  renderCompanions();
 
   // Show checkout button if occupied
   const btnCheckout = document.getElementById('btn-checkout');
@@ -932,6 +943,7 @@ window.saveGuestData = async function() {
     phone: document.getElementById('g-phone').value.trim(),
     whatsapp: document.getElementById('g-whatsapp').value.trim(),
     nationalId: document.getElementById('g-national-id').value.trim(),
+    companions: companions.filter(c => c.name || c.nationalId).map(c => ({ name: c.name.trim(), nationalId: c.nationalId.trim() })),
     notes: document.getElementById('g-notes').value.trim(),
     checkinDate: document.getElementById('g-checkin-date').value,
     checkinTime: document.getElementById('g-checkin-time').value,
@@ -1020,7 +1032,7 @@ window.checkoutGuest = async function() {
     await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
   }
 
-  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: true });
   await dbRemove(`guests/${roomId}`);
 
   logActivity('checkout', `خروج من الغرفة ${room?.number}: ${guest?.name}`, '🚪');
@@ -1768,6 +1780,13 @@ window.generateInvoice = function() {
         <span class="invoice-row-label">السعر لليلة</span>
         <span class="invoice-row-value">${(guest?.pricePerNight||0).toLocaleString('ar-EG')} جنيه</span>
       </div>
+      ${Array.isArray(guest?.companions) && guest.companions.length > 0 ? `
+      <div style="margin:10px 0 4px;font-weight:700;font-size:13px;color:#555;border-bottom:1px dashed #ddd;padding-bottom:4px;">👥 المرافقون</div>
+      ${guest.companions.map((c, i) => `
+      <div class="invoice-row" style="font-size:13px;">
+        <span class="invoice-row-label">${i+1}. ${c.name || '-'}</span>
+        <span class="invoice-row-value" style="font-size:12px;color:#666;">${c.nationalId ? 'ر.ق: ' + c.nationalId : ''}</span>
+      </div>`).join('')}` : ''}
 
       <div class="invoice-total">
         <div class="invoice-row">
@@ -1809,7 +1828,10 @@ window.sendInvoiceWhatsApp = function() {
     return;
   }
 
-  const phone = '2' + (guest.whatsapp || guest.phone).replace(/^0/, '');
+  const phone = '20' + (guest.whatsapp || guest.phone).replace(/^0/, '');
+  const companionsList = Array.isArray(guest?.companions) && guest.companions.length > 0
+    ? '\n👥 المرافقون:\n' + guest.companions.map((c, i) => `   ${i+1}. ${c.name || '-'}${c.nationalId ? ' | رقم قومي: ' + c.nationalId : ''}`).join('\n')
+    : '';
   const msg = encodeURIComponent(`
 🏨 *دار الضيافة بالمنصورة*
 ━━━━━━━━━━━━━━━━
@@ -1821,7 +1843,7 @@ window.sendInvoiceWhatsApp = function() {
 📅 الوصول: ${guest?.checkinDate || '-'}
 📅 المغادرة: ${guest?.checkoutDate || '-'}
 🌙 عدد الأيام: ${guest?.days || 0}
-💵 السعر لليلة: ${(guest?.pricePerNight||0).toLocaleString()} ج
+💵 السعر لليلة: ${(guest?.pricePerNight||0).toLocaleString()} ج${companionsList}
 
 ━━━━━━━━━━━━━━━━
 💰 الإجمالي: *${(guest?.total||0).toLocaleString()} جنيه*
@@ -1846,14 +1868,14 @@ window.callGuest = function() {
 window.openWhatsApp = function() {
   const phone = document.getElementById('g-phone').value.trim();
   if (!phone) { showToast('لا يوجد رقم هاتف', 'error'); return; }
-  const fullPhone = '2' + phone.replace(/^0/, '');
+  const fullPhone = '20' + phone.replace(/^0/, '');
   window.open(`https://wa.me/${fullPhone}`, '_blank');
 };
 
 window.openWhatsAppAlt = function() {
   const phone = document.getElementById('g-whatsapp').value.trim();
   if (!phone) { showToast('لا يوجد رقم واتساب', 'error'); return; }
-  const fullPhone = '2' + phone.replace(/^0/, '');
+  const fullPhone = '20' + phone.replace(/^0/, '');
   window.open(`https://wa.me/${fullPhone}`, '_blank');
 };
 
@@ -1874,11 +1896,95 @@ window.calcDays = function() {
   updateRemainingDays();
 };
 
+// ============================================================
+// COMPANIONS
+// ============================================================
+let companions = []; // [{ id, name, nationalId }]
+
+function renderCompanions() {
+  const list = document.getElementById('companions-list');
+  if (!list) return;
+  if (companions.length === 0) {
+    list.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:8px 0;">لا يوجد مرافقون</div>';
+    return;
+  }
+  list.innerHTML = companions.map((c, i) => `
+    <div class="companion-row" style="display:flex;gap:8px;align-items:center;background:var(--bg-secondary,#f8f9fa);border-radius:10px;padding:8px 10px;">
+      <input type="text" value="${escapeHtml(c.name)}" placeholder="اسم المرافق"
+        style="flex:2;padding:7px 10px;border-radius:8px;border:1px solid #ddd;font-size:13px;"
+        onchange="updateCompanion(${i}, 'name', this.value)" oninput="updateCompanion(${i}, 'name', this.value)">
+      <input type="text" value="${escapeHtml(c.nationalId)}" placeholder="الرقم القومي"
+        style="flex:2;padding:7px 10px;border-radius:8px;border:1px solid #ddd;font-size:13px;"
+        onchange="updateCompanion(${i}, 'nationalId', this.value)" oninput="updateCompanion(${i}, 'nationalId', this.value)">
+      <button type="button" onclick="removeCompanion(${i})"
+        style="background:#ff4d4f;color:#fff;border:none;border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;flex-shrink:0;">✕</button>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.addCompanionRow = function() {
+  companions.push({ id: Date.now(), name: '', nationalId: '' });
+  renderCompanions();
+  // Focus the last name input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.companion-row input');
+    if (inputs.length) inputs[inputs.length - 2].focus();
+  }, 50);
+};
+
+window.removeCompanion = function(index) {
+  companions.splice(index, 1);
+  renderCompanions();
+};
+
+window.updateCompanion = function(index, field, value) {
+  if (companions[index]) companions[index][field] = value;
+};
+
 window.calcTotal = function() {
   const days = parseInt(document.getElementById('g-days').value) || 0;
   const price = parseFloat(document.getElementById('g-price-per-night').value) || 0;
   const total = days * price;
   document.getElementById('g-total').value = total;
+
+  // Auto-calculate checkout date when days are entered
+  if (days > 0) {
+    const checkinDateEl = document.getElementById('g-checkin-date');
+    const checkinTimeEl = document.getElementById('g-checkin-time');
+    const checkoutDateEl = document.getElementById('g-checkout-date');
+    const checkoutTimeEl = document.getElementById('g-checkout-time');
+
+    // Use checkin date if set, otherwise use today
+    let baseDate = checkinDateEl?.value
+      ? new Date(checkinDateEl.value + 'T00:00:00')
+      : new Date();
+    baseDate.setHours(0, 0, 0, 0);
+
+    // If no checkin date, set it to today
+    if (!checkinDateEl?.value) {
+      const today = new Date();
+      checkinDateEl.value = today.toISOString().split('T')[0];
+      if (checkinTimeEl && !checkinTimeEl.value) {
+        const hh = String(today.getHours()).padStart(2, '0');
+        const mm = String(today.getMinutes()).padStart(2, '0');
+        checkinTimeEl.value = `${hh}:${mm}`;
+      }
+    }
+
+    const checkoutDate = new Date(baseDate);
+    checkoutDate.setDate(checkoutDate.getDate() + days);
+    checkoutDateEl.value = checkoutDate.toISOString().split('T')[0];
+
+    // Set checkout time to 12:00 noon
+    if (checkoutTimeEl) checkoutTimeEl.value = '12:00';
+
+    updateRemainingDays();
+  }
+
   calcRemaining();
 };
 

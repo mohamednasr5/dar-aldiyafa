@@ -2,7 +2,7 @@
   "name": "دار الضيافة بالمنصورة",
   "short_name": "دار الضيافة",
   "description": "نظام إدارة فندق دار الضيافة بالمنصورة - Dar Al Diyafa Mansoura Hotel Management System",
-  "start_url": "/index.html",
+  "start_url": "https://mohamednasr5.github.io/dar-aldiyafa/",
   "display": "standalone",
   "background_color": "#0a0a1a",
   "theme_color": "#0a0a1a",

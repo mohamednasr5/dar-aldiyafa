@@ -437,6 +437,15 @@
           <label>الرقم القومي</label>
           <input type="text" id="g-national-id" placeholder="الرقم القومي">
         </div>
+
+        <!-- Companions Section -->
+        <div class="form-group companions-section" style="grid-column: 1 / -1;">
+          <div class="companions-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <label style="margin:0;font-weight:700;font-size:15px;">👥 المرافقون</label>
+            <button type="button" class="btn-primary btn-sm" onclick="addCompanionRow()" style="padding:6px 14px;font-size:13px;">+ إضافة مرافق</button>
+          </div>
+          <div id="companions-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
         <div class="form-group">
           <label>ملاحظات</label>
           <input type="text" id="g-notes" placeholder="أي ملاحظات">
@@ -459,7 +468,7 @@
         </div>
         <div class="form-group">
           <label>عدد الأيام</label>
-          <input type="number" id="g-days" placeholder="0" onchange="calcTotal()">
+          <input type="number" id="g-days" placeholder="0" oninput="calcTotal()" onchange="calcTotal()">
         </div>
         <div class="form-group">
           <label>السعر لليلة (ج)</label>
