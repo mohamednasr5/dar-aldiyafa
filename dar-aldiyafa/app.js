@@ -49,7 +49,7 @@ const AppState = {
   currentFilter: 'all',
   offlineQueue: JSON.parse(localStorage.getItem('offlineQueue') || '[]'),
   isOnline: navigator.onLine,
-  theme: localStorage.getItem('theme') || 'dark',
+  theme: localStorage.getItem('theme') || 'light',
   currentEditRoom: null
 };
 
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSidebarBackdrop();
 
   // Set today's date defaults
-  const today = getEgyptTime().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
   const finFrom = document.getElementById('fin-from');
   const finTo = document.getElementById('fin-to');
   if (finFrom) { finFrom.value = today; finTo.value = today; }
@@ -126,81 +126,24 @@ function initParticles() {
 }
 
 // ============================================================
-// CLOCK - متزامن مع توقيت مصر (Africa/Cairo)
+// CLOCK
 // ============================================================
-function getEgyptTime() {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
-}
-
 function initClock() {
   const tick = () => {
-    const now = getEgyptTime();
+    const now = new Date();
     const clock = document.getElementById('live-clock');
     const dateEl = document.getElementById('live-date');
     if (clock) {
-      clock.textContent = now.toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo' });
+      clock.textContent = now.toLocaleTimeString('ar-EG');
     }
     if (dateEl) {
       dateEl.textContent = now.toLocaleDateString('ar-EG', {
-        timeZone: 'Africa/Cairo',
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
       });
     }
   };
   tick();
   setInterval(tick, 1000);
-
-  // فحص انتهاء مدة الإقامة كل دقيقة
-  setInterval(checkExpiredGuests, 60 * 1000);
-  setTimeout(checkExpiredGuests, 3000); // فحص فوري بعد 3 ثوان من التحميل
-}
-
-// ============================================================
-// AUTO CHECKOUT - تحويل الغرفة لمتاحة عند انتهاء وقت الإقامة
-// ============================================================
-async function checkExpiredGuests() {
-  const now = getEgyptTime();
-  const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD بتوقيت مصر
-  const currentHour = now.getHours();
-  const currentMin = now.getMinutes();
-
-  for (const [roomId, guest] of Object.entries(AppState.guests)) {
-    if (!guest.checkoutDate) continue;
-    const room = AppState.rooms[roomId];
-    if (!room || room.status === 'available') continue;
-
-    const [coHour, coMin] = (guest.checkoutTime || '12:00').split(':').map(Number);
-
-    // الغرفة منتهية إذا: تاريخ الخروج قبل اليوم، أو تاريخ الخروج اليوم والوقت مر
-    const checkoutDate = guest.checkoutDate;
-    const isExpired =
-      checkoutDate < todayStr ||
-      (checkoutDate === todayStr && (currentHour > coHour || (currentHour === coHour && currentMin >= coMin)));
-
-    if (isExpired) {
-      console.log(`[AutoCheckout] Room ${room.number} expired, clearing...`);
-
-      // أرشفة بيانات النزيل قبل الحذف
-      try {
-        await dbPush('checkoutHistory', {
-          ...guest,
-          autoCheckout: true,
-          checkoutActual: Date.now(),
-          roomNumber: room.number
-        });
-      } catch(e) {}
-
-      // تنظيف الغرفة وتحويلها لمتاحة
-      await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
-      await dbRemove(`guests/${roomId}`);
-
-      logActivity('auto_checkout',
-        `خروج تلقائي من الغرفة ${room.number}: ${guest.name || 'نزيل'} (انتهت مدة الإقامة)`,
-        '⏰');
-
-      showToast(`⏰ تم تحويل الغرفة ${room.number} لمتاحة (انتهت مدة الإقامة)`, 'info', 5000);
-    }
-  }
 }
 
 // ============================================================
@@ -348,32 +291,6 @@ window.doLogin = async function() {
   errEl.classList.remove('hidden');
 };
 
-// ============================================================
-// TOGGLE PASSWORD VISIBILITY
-// ============================================================
-window.togglePasswordVisibility = function() {
-  const input = document.getElementById('login-password');
-  const icon = document.getElementById('eye-icon');
-  if (!input) return;
-
-  if (input.type === 'password') {
-    input.type = 'text';
-    // Eye with slash (hidden)
-    icon.innerHTML = `
-      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    `;
-  } else {
-    input.type = 'password';
-    // Eye open
-    icon.innerHTML = `
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    `;
-  }
-};
-
 function loginSuccess(user) {
   AppState.currentUser = user;
   localStorage.setItem('hotelSession', JSON.stringify(user));
@@ -392,14 +309,6 @@ function loginSuccess(user) {
   document.getElementById('main-app').classList.remove('hidden');
 
   logActivity('login', `تسجيل دخول: ${user.name}`, '🔑');
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'صباح الخير' : hour < 17 ? 'مساء الخير' : 'مساء النور';
-  const roleLabel = user.role === 'superadmin' ? 'مدير النظام' : user.role === 'admin' ? 'مدير' : 'موظف استقبال';
-  setTimeout(() => {
-    showToast(`${greeting}، ${user.name} 👋`, 'success');
-  }, 600);
-
   initDataListeners();
   updateFinancials();
   requestNotificationPermission();
@@ -408,33 +317,39 @@ function loginSuccess(user) {
 
 function enforcePermissions(user) {
   const isSuperAdmin = user.role === 'superadmin';
-  const p = user.permissions || {};
+  const p = isSuperAdmin
+    ? { dashboard: true, rooms: true, reservations: true, search: true, financial: true, employees: true, activity: true }
+    : (user.permissions || {});
 
-  AppState.canViewRooms        = isSuperAdmin || p.rooms        !== false;
-  AppState.canViewReservations = isSuperAdmin || p.reservations !== false;
-  AppState.canViewSearch       = isSuperAdmin || p.search       !== false;
-  AppState.canViewFinancial    = isSuperAdmin || !!p.financial;
-  AppState.canViewEmployees    = isSuperAdmin;
-  AppState.canViewActivity     = isSuperAdmin || p.activity     !== false;
-  AppState.canViewGuests       = isSuperAdmin || p.rooms        !== false;
+  // Store globally for showSection checks
+  AppState.canViewRooms       = isSuperAdmin || p.rooms        !== false;
+  AppState.canViewReservations= isSuperAdmin || p.reservations !== false;
+  AppState.canViewSearch      = isSuperAdmin || p.search       !== false;
+  AppState.canViewFinancial   = isSuperAdmin || !!p.financial;
+  AppState.canViewEmployees   = isSuperAdmin;
+  AppState.canViewActivity    = isSuperAdmin || p.activity     !== false;
+  AppState.canViewGuests      = isSuperAdmin || p.rooms        !== false;
 
-  function setEl(id, show) {
+  // Show/hide nav items
+  function setNav(id, show) {
     const el = document.getElementById(id);
     if (el) el.style.display = show ? '' : 'none';
   }
 
-  setEl('nav-rooms',             AppState.canViewRooms);
-  setEl('nav-financial',         AppState.canViewFinancial);
-  setEl('nav-employees',         AppState.canViewEmployees);
-  setEl('bottom-nav-financial',  AppState.canViewFinancial);
+  setNav('nav-rooms',               AppState.canViewRooms);
+  setNav('nav-financial',           AppState.canViewFinancial);
+  setNav('nav-employees',           AppState.canViewEmployees);
 
-  // Handle nav items by onclick attribute for sections without dedicated IDs
+  // Sidebar nav items (by onclick text)
   document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => {
-    const oc = el.getAttribute('onclick') || '';
-    if (oc.includes("'reservations'"))  el.style.display = AppState.canViewReservations ? '' : 'none';
-    if (oc.includes("'search'"))        el.style.display = AppState.canViewSearch       ? '' : 'none';
-    if (oc.includes("'activity'"))      el.style.display = AppState.canViewActivity     ? '' : 'none';
+    const onclick = el.getAttribute('onclick') || '';
+    if (onclick.includes("'reservations'"))  el.style.display = (isSuperAdmin || p.reservations !== false) ? '' : 'none';
+    if (onclick.includes("'search'"))        el.style.display = (isSuperAdmin || p.search       !== false) ? '' : 'none';
+    if (onclick.includes("'activity'"))      el.style.display = (isSuperAdmin || p.activity     !== false) ? '' : 'none';
+    if (onclick.includes("'financial'"))     { setNav('bottom-nav-financial', AppState.canViewFinancial); }
   });
+
+  setNav('bottom-nav-financial', AppState.canViewFinancial);
 }
 
 window.doLogout = function() {
@@ -450,7 +365,7 @@ window.doLogout = function() {
 // FIREBASE REALTIME LISTENERS
 // ============================================================
 function initDataListeners() {
-  // Rooms — يحدّث الكروت + الجدول + الإحصائيات دايماً
+  // Rooms
   onValue(ref(db, 'rooms'), snap => {
     AppState.rooms = snap.exists() ? snap.val() : {};
     renderRooms();
@@ -459,13 +374,10 @@ function initDataListeners() {
     populateRoomDropdown();
   });
 
-  // Guests — يحدّث الكروت + الجدول (بيانات النزيل بتظهر في الجدول)
+  // Guests
   onValue(ref(db, 'guests'), snap => {
     AppState.guests = snap.exists() ? snap.val() : {};
-    renderRooms();
-    updateRoomsTable();
-    // فحص انتهاء الإقامات بعد أي تغيير في البيانات
-    setTimeout(checkExpiredGuests, 500);
+    renderRooms(); // refresh cards with guest data
   });
 
   // Reservations
@@ -499,7 +411,7 @@ function initDataListeners() {
 // NAVIGATION
 // ============================================================
 window.showSection = function(name) {
-  // Permission check
+  // Permission checks
   const sectionPerms = {
     rooms:        AppState.canViewRooms,
     reservations: AppState.canViewReservations,
@@ -508,11 +420,11 @@ window.showSection = function(name) {
     employees:    AppState.canViewEmployees,
     activity:     AppState.canViewActivity,
   };
-  if (name in sectionPerms && sectionPerms[name] === false) {
+
+  if (name in sectionPerms && !sectionPerms[name]) {
     showToast('ليس لديك صلاحية للوصول إلى هذا القسم', 'error');
     return;
   }
-
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
@@ -521,8 +433,8 @@ window.showSection = function(name) {
   if (sec) sec.classList.add('active');
 
   if (name === 'financial') updateFinancials();
-  if (name === 'rooms') { renderRoomsTable(); }
 
+  // Close sidebar on mobile
   if (window.innerWidth <= 768) {
     document.getElementById('sidebar').classList.remove('open');
     document.querySelector('.sidebar-backdrop')?.classList.remove('active');
@@ -568,7 +480,153 @@ function applyTheme(theme) {
 }
 
 // ============================================================
-// FLOOR FILTER
+// CHECKOUT NOTIFICATIONS SYSTEM
+// ============================================================
+let notificationCheckInterval = null;
+
+function startCheckoutNotifications() {
+  checkForCheckoutNotifications();
+  if (notificationCheckInterval) clearInterval(notificationCheckInterval);
+  notificationCheckInterval = setInterval(checkForCheckoutNotifications, 60 * 1000); // check every minute
+}
+
+function checkForCheckoutNotifications() {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  Object.entries(AppState.guests).forEach(([roomId, guest]) => {
+    if (!guest || !guest.checkoutDate) return;
+    const room = AppState.rooms[roomId];
+    if (!room || room.status !== 'occupied') return;
+
+    const checkoutDate = guest.checkoutDate;
+    const checkoutTime = guest.checkoutTime || '12:00';
+
+    // Parse checkout datetime
+    const checkoutDT = new Date(`${checkoutDate}T${checkoutTime}:00`);
+    const diffMs = checkoutDT - now;
+    const diffMins = Math.round(diffMs / 60000);
+
+    // Already notified key
+    const notifKey = `notified_${roomId}_${checkoutDate}`;
+    const alreadyNotified = sessionStorage.getItem(notifKey);
+
+    // Trigger notification: overdue (past checkout) or within 30 min
+    if (!alreadyNotified && (diffMins <= 0 || (diffMins > 0 && diffMins <= 30))) {
+      sessionStorage.setItem(notifKey, '1');
+      showCheckoutNotification(roomId, room, guest, diffMins);
+    }
+  });
+}
+
+function showCheckoutNotification(roomId, room, guest, diffMins) {
+  // Remove any existing checkout notification for this room
+  const existingId = `checkout-notif-${roomId}`;
+  const existing = document.getElementById(existingId);
+  if (existing) existing.remove();
+
+  const isOverdue = diffMins <= 0;
+  const timeText = isOverdue
+    ? `تجاوز وقت المغادرة بـ ${Math.abs(diffMins)} دقيقة`
+    : `متبقي ${diffMins} دقيقة على موعد المغادرة`;
+
+  const notif = document.createElement('div');
+  notif.id = existingId;
+  notif.className = `checkout-notification ${isOverdue ? 'overdue' : 'warning'}`;
+  notif.innerHTML = `
+    <div class="checkout-notif-header">
+      <span class="checkout-notif-icon">${isOverdue ? '🚨' : '⏰'}</span>
+      <div class="checkout-notif-title">
+        <strong>${isOverdue ? 'انتهى وقت الإقامة!' : 'تنبيه: موعد المغادرة قريب'}</strong>
+        <div class="checkout-notif-subtitle">الغرفة ${room.number} ${room.type === 'vip' ? '👑' : ''} | ${guest.name || 'نزيل'}</div>
+      </div>
+      <button class="checkout-notif-close" onclick="dismissCheckoutNotif('${existingId}')">✕</button>
+    </div>
+    <div class="checkout-notif-time">${timeText}</div>
+    <div class="checkout-notif-days">
+      عدد الأيام المحجوزة: ${guest.days || 0} يوم &nbsp;|&nbsp; تاريخ المغادرة: ${guest.checkoutDate} ${guest.checkoutTime || '12:00'}
+    </div>
+    <div class="checkout-notif-actions">
+      ${guest.phone ? `
+        <button class="btn-call-notif" onclick="callGuestFromNotif('${guest.phone}')">
+          📞 اتصال بالنزيل
+        </button>
+        <button class="btn-whatsapp-notif" onclick="whatsappGuestFromNotif('${guest.phone}')">
+          💬 واتساب
+        </button>
+      ` : ''}
+      <button class="btn-checkout-notif" onclick="quickCheckoutFromNotif('${roomId}', '${existingId}')">
+        🚪 تم تسجيل الخروج
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(notif);
+
+  // Auto-dismiss after 2 minutes if not overdue
+  if (!isOverdue) {
+    setTimeout(() => {
+      const el = document.getElementById(existingId);
+      if (el) el.remove();
+    }, 120000);
+  }
+
+  // Browser notification if permitted
+  if (Notification.permission === 'granted') {
+    new Notification(`🚨 دار الضيافة - الغرفة ${room.number}`, {
+      body: `${guest.name || 'النزيل'} - ${timeText}`,
+      icon: 'assets/icon-192.png'
+    });
+  }
+}
+
+window.dismissCheckoutNotif = function(notifId) {
+  const el = document.getElementById(notifId);
+  if (el) el.classList.add('dismissing');
+  setTimeout(() => { if (el) el.remove(); }, 300);
+};
+
+window.callGuestFromNotif = function(phone) {
+  window.open(`tel:${phone}`);
+};
+
+window.whatsappGuestFromNotif = function(phone) {
+  const fullPhone = '2' + phone.replace(/^0/, '');
+  window.open(`https://wa.me/${fullPhone}`, '_blank');
+};
+
+window.quickCheckoutFromNotif = async function(roomId, notifId) {
+  const room = AppState.rooms[roomId];
+  const guest = AppState.guests[roomId];
+  if (!room || !guest) return;
+
+  if (!confirm(`تأكيد تسجيل خروج ${guest.name || 'النزيل'} من الغرفة ${room.number}؟`)) return;
+
+  // Archive guest
+  if (guest) {
+    await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
+  }
+
+  // Free room immediately → available
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
+  await dbRemove(`guests/${roomId}`);
+
+  logActivity('checkout', `خروج سريع من الغرفة ${room.number}: ${guest.name}`, '🚪');
+  showToast(`✅ تم تسجيل خروج ${guest.name || ''} والغرفة ${room.number} متاحة الآن`, 'success');
+
+  const el = document.getElementById(notifId);
+  if (el) el.remove();
+};
+
+// Request notification permission on login
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// ============================================================
+// SMART ROOM FILTER (Dashboard + Rooms section)
 // ============================================================
 window.filterFloor = function(floor, btn) {
   AppState.currentFilter = floor;
@@ -576,6 +634,31 @@ window.filterFloor = function(floor, btn) {
   btn.classList.add('active');
   renderRooms();
 };
+
+// Smart filter state
+AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
+
+window.applyDropdownFilter = function() {
+  AppState.smartFilter.status = document.getElementById('filter-status')?.value || 'all';
+  AppState.smartFilter.type   = document.getElementById('filter-type')?.value  || 'all';
+  AppState.smartFilter.floor  = document.getElementById('filter-floor')?.value  || 'all';
+  renderRoomsTable();
+};
+
+window.resetDropdownFilter = function() {
+  AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
+  const fs = document.getElementById('filter-status');
+  const ft = document.getElementById('filter-type');
+  const ff = document.getElementById('filter-floor');
+  if (fs) fs.value = 'all';
+  if (ft) ft.value = 'all';
+  if (ff) ff.value = 'all';
+  renderRoomsTable();
+};
+
+// Keep old applySmartFilter as alias (not used anymore)
+window.applySmartFilter = function() {};
+window.resetSmartFilter = window.resetDropdownFilter;
 
 // ============================================================
 // RENDER ROOMS
@@ -609,11 +692,11 @@ function renderRooms() {
   grid.innerHTML = filtered.map(([id, room]) => {
     const guest = AppState.guests[id];
     const statusLabels = {
-      available: 'متاحة', occupied: 'مشغولة',
-      reserved: 'محجوزة', cleaning: 'جار التنظيف', maintenance: 'تحت الصيانة'
+      available: 'شاغرة', occupied: 'مشغولة',
+      reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة'
     };
     const statusEmojis = {
-      available: '🟢', occupied: '🔴', reserved: '🟠', cleaning: '🔵', maintenance: '⚙️'
+      available: '✅', occupied: '🔴', reserved: '🟠', cleaning: '🔵', maintenance: '⚙️'
     };
 
     const remainingDays = guest?.checkoutDate ?
@@ -639,7 +722,7 @@ function renderRooms() {
       </div>
       <div class="status-indicator">
         <div class="status-dot-card"></div>
-        <span class="status-text">${statusLabels[room.status] || 'متاحة'} ${statusEmojis[room.status] || ''}</span>
+        <span class="status-text">${statusLabels[room.status] || 'شاغرة'} ${statusEmojis[room.status] || ''}</span>
       </div>
       ${guest?.name ? `<div class="guest-name-card">👤 ${guest.name}</div>` : ''}
       <div class="room-card-footer">
@@ -678,7 +761,7 @@ function updateStats() {
   setText('stat-total', rooms.length);
 
   // Today's revenue
-  const today = getEgyptTime().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
   let todayRev = 0;
   Object.values(AppState.guests).forEach(g => {
     if (g.checkinDate === today && g.paid) {
@@ -694,29 +777,11 @@ function setText(id, val) {
 }
 
 // ============================================================
-// ROOMS TABLE + SMART DROPDOWN FILTER
+// ROOMS TABLE
 // ============================================================
-AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
-
-window.applyDropdownFilter = function() {
-  AppState.smartFilter.status = document.getElementById('filter-status')?.value || 'all';
-  AppState.smartFilter.type   = document.getElementById('filter-type')?.value   || 'all';
-  AppState.smartFilter.floor  = document.getElementById('filter-floor')?.value  || 'all';
+function updateRoomsTable() {
   renderRoomsTable();
-};
-
-window.resetDropdownFilter = function() {
-  AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
-  const fs = document.getElementById('filter-status');
-  const ft = document.getElementById('filter-type');
-  const ff = document.getElementById('filter-floor');
-  if (fs) fs.value = 'all';
-  if (ft) ft.value = 'all';
-  if (ff) ff.value = 'all';
-  renderRoomsTable();
-};
-
-function updateRoomsTable() { renderRoomsTable(); }
+}
 
 function renderRoomsTable() {
   const tbody = document.getElementById('rooms-table-body');
@@ -724,18 +789,21 @@ function renderRoomsTable() {
 
   const sf = AppState.smartFilter || { status: 'all', type: 'all', floor: 'all' };
   let rooms = Object.entries(AppState.rooms);
-
   if (!rooms.length) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">لا توجد غرف</td></tr>`;
-    const c = document.getElementById('rooms-filter-count');
-    if (c) c.textContent = '0 غرفة';
     return;
   }
 
-  // Apply filters
-  if (sf.status !== 'all') rooms = rooms.filter(([,r]) => (r.status || 'available') === sf.status);
-  if (sf.type   !== 'all') rooms = rooms.filter(([,r]) => sf.type === 'vip' ? r.type === 'vip' : r.type !== 'vip');
-  if (sf.floor  !== 'all') rooms = rooms.filter(([,r]) => String(r.floor) === String(sf.floor));
+  // Apply smart filters
+  if (sf.status !== 'all') {
+    rooms = rooms.filter(([,r]) => (r.status || 'available') === sf.status);
+  }
+  if (sf.type !== 'all') {
+    rooms = rooms.filter(([,r]) => sf.type === 'vip' ? r.type === 'vip' : r.type !== 'vip');
+  }
+  if (sf.floor !== 'all') {
+    rooms = rooms.filter(([,r]) => String(r.floor) === String(sf.floor));
+  }
 
   rooms.sort(([,a],[,b]) => {
     if (a.floor !== b.floor) return a.floor - b.floor;
@@ -743,24 +811,25 @@ function renderRoomsTable() {
   });
 
   const countEl = document.getElementById('rooms-filter-count');
-  if (countEl) countEl.textContent = `${rooms.length} غرفة`;
 
   if (!rooms.length) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">لا توجد غرف تطابق الفلتر المحدد</td></tr>`;
+    if (countEl) countEl.textContent = '0 غرفة';
     return;
   }
 
+  if (countEl) countEl.textContent = `${rooms.length} غرفة`;
+
   const statusMap = {
-    available:   ['badge-available','متاحة ✅'],
-    occupied:    ['badge-occupied','مشغولة 🔴'],
-    reserved:    ['badge-reserved','محجوزة 🟠'],
-    cleaning:    ['badge-cleaning','تنظيف 🔵'],
+    available: ['badge-available','شاغرة ✅'], occupied: ['badge-occupied','مشغولة 🔴'],
+    reserved: ['badge-reserved','محجوزة 🟠'], cleaning: ['badge-cleaning','تنظيف 🔵'],
     maintenance: ['badge-maintenance','صيانة ⚙️']
   };
 
   tbody.innerHTML = rooms.map(([id, room]) => {
     const guest = AppState.guests[id];
-    const [badgeClass, label] = statusMap[room.status] || ['badge-available','متاحة'];
+    const [badgeClass, label] = statusMap[room.status] || ['badge-available','شاغرة'];
+
     return `
     <tr>
       <td><strong>${room.number}</strong></td>
@@ -776,6 +845,8 @@ function renderRoomsTable() {
         </div>
       </td>
     </tr>`;
+  }).join('');
+}
   }).join('');
 }
 
@@ -800,10 +871,6 @@ window.openRoomModal = function(roomId) {
   if (keyCb) keyCb.checked = room.keyWithReception || false;
 
   // Guest data
-  const now = getEgyptTime();
-  const todayDate = now.toISOString().split('T')[0];
-  const currentTime = now.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' });
-
   const fields = {
     'g-name': guest?.name || '',
     'g-profession': guest?.profession || '',
@@ -811,8 +878,8 @@ window.openRoomModal = function(roomId) {
     'g-whatsapp': guest?.whatsapp || '',
     'g-national-id': guest?.nationalId || '',
     'g-notes': guest?.notes || '',
-    'g-checkin-date': guest?.checkinDate || todayDate,
-    'g-checkin-time': guest?.checkinTime || currentTime,
+    'g-checkin-date': guest?.checkinDate || '',
+    'g-checkin-time': guest?.checkinTime || '',
     'g-checkout-date': guest?.checkoutDate || '',
     'g-checkout-time': guest?.checkoutTime || '12:00',
     'g-days': guest?.days || '',
@@ -896,15 +963,8 @@ window.saveGuestData = async function() {
     }
   }
 
-  // حالة الغرفة — إذا فيه بيانات نزيل يتحول تلقائي لمشغولة
-  // إلا إذا الموظف اختار محجوزة بنفسه
-  const selectedStatus = document.getElementById('modal-status').value;
-  const hasGuestData = guestData.name || guestData.checkinDate;
-  let newStatus = selectedStatus;
-  if (hasGuestData && selectedStatus === 'available') {
-    newStatus = 'occupied'; // تلقائي مشغولة عند إضافة بيانات نزيل
-    document.getElementById('modal-status').value = 'occupied';
-  }
+  // Room status & key
+  const newStatus = document.getElementById('modal-status').value;
   const keyWithReception = document.getElementById('modal-key-reception').checked;
 
   await dbSet(`guests/${roomId}`, guestData);
@@ -939,7 +999,7 @@ window.checkoutGuest = async function() {
         const visit = hist.visits.find(v => v.checkinDate === guest.checkinDate && v.roomId === roomId);
         if (visit) {
           visit.checkedOut = true;
-          visit.actualCheckout = getEgyptTime().toISOString().split('T')[0];
+          visit.actualCheckout = new Date().toISOString().split('T')[0];
         }
       }
       await dbSet(`guestHistory/${histKey}`, hist);
@@ -951,11 +1011,11 @@ window.checkoutGuest = async function() {
     await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
   }
 
-  await dbUpdate(`rooms/${roomId}`, { status: 'cleaning', keyWithReception: false });
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: false });
   await dbRemove(`guests/${roomId}`);
 
   logActivity('checkout', `خروج من الغرفة ${room?.number}: ${guest?.name}`, '🚪');
-  showToast(`تم تسجيل خروج ${guest?.name || ''} بنجاح`, 'success');
+  showToast(`✅ تم تسجيل خروج ${guest?.name || ''} — الغرفة متاحة الآن`, 'success');
   closeModal('guest-modal');
 };
 
@@ -966,14 +1026,7 @@ window.updateRoomStatusFromModal = async function() {
   const roomId = document.getElementById('modal-room-id').value;
   if (!roomId) return;
   const status = document.getElementById('modal-status').value;
-
-  // حفظ فوري في Firebase — يُحدِّث الكروت والجدول في نفس اللحظة
-  try {
-    await dbUpdate(`rooms/${roomId}`, { status });
-    // الـ onValue هيشتغل تلقائياً ويحدّث renderRooms + updateRoomsTable
-  } catch(e) {
-    console.warn('Status update failed:', e);
-  }
+  // Will be saved on full save
 };
 
 // ============================================================
@@ -1016,7 +1069,7 @@ window.saveRoom = async function() {
   const roomData = { number, type, floor, status, createdAt: Date.now() };
 
   if (editId) {
-    await dbUpdate(`rooms/${editId}`, { number, type, floor, status });
+    await dbUpdate(`rooms/${editId}`, { number, type, floor });
     logActivity('room_edit', `تعديل الغرفة ${number}`, '✏️');
     showToast('تم تحديث الغرفة ✅', 'success');
   } else {
@@ -1136,7 +1189,7 @@ window.convertReservationToCheckin = function(resId) {
     setTimeout(() => {
       document.getElementById('g-name').value = res.name;
       document.getElementById('g-phone').value = res.phone || '';
-      document.getElementById('g-checkin-date').value = res.date || getEgyptTime().toISOString().split('T')[0];
+      document.getElementById('g-checkin-date').value = res.date || new Date().toISOString().split('T')[0];
       document.getElementById('modal-status').value = 'occupied';
     }, 300);
   }
@@ -1201,7 +1254,7 @@ window.doSearch = function(query) {
           <div class="res-info">📅 ${guest.checkinDate || '-'} → ${guest.checkoutDate || '-'}</div>
           <div class="res-info">💰 إجمالي: ${(guest.total||0).toLocaleString('ar-EG')} ج | مدفوع: ${(guest.paid||0).toLocaleString('ar-EG')} ج | متبقي: ${(guest.remaining||0).toLocaleString('ar-EG')} ج</div>
         </div>
-      ` : '<div class="res-info" style="color:var(--available)">✅ الغرفة متاحة</div>'}
+      ` : '<div class="res-info" style="color:var(--available)">✅ الغرفة شاغرة</div>'}
       ${guest?.phone ? `<button class="btn-secondary btn-sm" style="margin-top:8px" onclick="loadGuestHistory('${guest.phone}')">📋 سجل النزيل</button>` : ''}
     </div>`;
   }).join('');
@@ -1257,7 +1310,7 @@ window.updateFinancials = function() {
   const guests = Object.values(AppState.guests || {});
   const history = Object.values(AppState.checkoutHistory || {});
 
-  const today = getEgyptTime().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
   const thisMonth = today.substring(0, 7);
   const thisYear = today.substring(0, 4);
 
@@ -1436,45 +1489,23 @@ window.showAddEmployeeModal = function() {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('emp-role').value = 'receptionist';
-  // Reset all permissions to defaults
-  const defaults = { 'perm-rooms': true, 'perm-reservations': true, 'perm-search': true, 'perm-financial': false, 'perm-employees': false, 'perm-activity': true };
-  Object.entries(defaults).forEach(([id, val]) => {
-    const el = document.getElementById(id); if (el && !el.disabled) el.checked = val;
-  });
-  openModal('employee-modal');
-};
 
-window.editEmployee = function(empId) {
-  if (AppState.currentUser?.role !== 'superadmin') {
-    showToast('ليس لديك صلاحية لتعديل الموظفين', 'error');
-    return;
-  }
-  const emp = AppState.employees[empId];
-  if (!emp) { showToast('لم يتم العثور على الموظف', 'error'); return; }
-
-  document.getElementById('emp-modal-title').textContent = 'تعديل بيانات الموظف';
-  document.getElementById('edit-emp-id').value = empId;
-  document.getElementById('emp-name').value = emp.name || '';
-  document.getElementById('emp-username').value = emp.username || '';
-  document.getElementById('emp-password').value = emp.password || '';
-  document.getElementById('emp-role').value = emp.role || 'receptionist';
-
-  // Fill permissions
-  const p = emp.permissions || {};
-  const permMap = {
-    'perm-rooms': p.rooms !== false,
-    'perm-reservations': p.reservations !== false,
-    'perm-search': p.search !== false,
-    'perm-financial': !!p.financial,
-    'perm-employees': !!p.employees,
-    'perm-activity': p.activity !== false
-  };
-  Object.entries(permMap).forEach(([id, val]) => {
-    const el = document.getElementById(id); if (el && !el.disabled) el.checked = val;
-  });
+  // Default permissions for new employee
+  setPermToggle('perm-dashboard', true);
+  setPermToggle('perm-rooms', true);
+  setPermToggle('perm-reservations', true);
+  setPermToggle('perm-search', true);
+  setPermToggle('perm-financial', false);
+  setPermToggle('perm-employees', false);
+  setPermToggle('perm-activity', true);
 
   openModal('employee-modal');
 };
+
+function setPermToggle(id, val) {
+  const el = document.getElementById(id);
+  if (el && !el.disabled) el.checked = val;
+}
 
 window.saveEmployee = async function() {
   const name = document.getElementById('emp-name').value.trim();
@@ -1483,29 +1514,31 @@ window.saveEmployee = async function() {
   const role = document.getElementById('emp-role').value;
   const editId = document.getElementById('edit-emp-id').value;
 
-  if (!name || !username) {
-    showToast('يرجى ملء الاسم واسم المستخدم', 'error'); return;
-  }
-  if (!editId && !password) {
-    showToast('يرجى إدخال كلمة المرور للموظف الجديد', 'error'); return;
+  if (!name || !username || !password) {
+    showToast('يرجى ملء جميع الحقول المطلوبة', 'error'); return;
   }
 
-  const getChecked = id => { const el = document.getElementById(id); return el ? el.checked : false; };
   const permissions = {
-    rooms: getChecked('perm-rooms'),
-    reservations: getChecked('perm-reservations'),
-    search: getChecked('perm-search'),
-    financial: getChecked('perm-financial'),
-    employees: getChecked('perm-employees'),
-    activity: getChecked('perm-activity')
+    dashboard:    document.getElementById('perm-dashboard')?.checked    ?? true,
+    rooms:        document.getElementById('perm-rooms')?.checked        ?? true,
+    reservations: document.getElementById('perm-reservations')?.checked ?? true,
+    search:       document.getElementById('perm-search')?.checked       ?? true,
+    financial:    document.getElementById('perm-financial')?.checked    ?? false,
+    employees:    document.getElementById('perm-employees')?.checked    ?? false,
+    activity:     document.getElementById('perm-activity')?.checked     ?? true,
+    guests:       document.getElementById('perm-rooms')?.checked        ?? true, // tied to rooms
   };
 
-  const existing = editId ? (AppState.employees[editId] || {}) : {};
-  const finalPassword = password || existing.password || '';
-  const empData = { name, username, password: finalPassword, role, permissions, createdAt: existing.createdAt || Date.now() };
+  const empData = { name, username, password, role, permissions, updatedAt: Date.now() };
+  if (!editId) empData.createdAt = Date.now();
 
   if (editId) {
     await dbUpdate(`employees/${editId}`, empData);
+    // If this is the currently logged-in user, update session
+    if (AppState.currentUser?.id === editId) {
+      AppState.currentUser = { ...AppState.currentUser, ...empData };
+      localStorage.setItem('hotelSession', JSON.stringify(AppState.currentUser));
+    }
     logActivity('employee_edit', `تعديل موظف: ${name}`, '👤');
     showToast('تم تحديث بيانات الموظف ✅', 'success');
   } else {
@@ -1521,15 +1554,29 @@ function renderEmployees() {
   const container = document.getElementById('employees-list');
   if (!container) return;
 
-  const roleLabels = { receptionist: 'موظف استقبال', manager: 'مدير', admin: 'مدير النظام', superadmin: 'مدير عام' };
+  const roleLabels = { receptionist: 'موظف استقبال', manager: 'مدير قسم', admin: 'مدير النظام', superadmin: 'مدير عام' };
 
-  // Always show master admin
+  const allPermLabels = [
+    { key: 'dashboard',    icon: '🏠', label: 'لوحة التحكم' },
+    { key: 'rooms',        icon: '🚪', label: 'الغرف' },
+    { key: 'reservations', icon: '📅', label: 'الحجوزات' },
+    { key: 'search',       icon: '🔍', label: 'البحث' },
+    { key: 'financial',    icon: '💰', label: 'المالية' },
+    { key: 'employees',    icon: '👥', label: 'الموظفون' },
+    { key: 'activity',     icon: '📋', label: 'النشاط' },
+  ];
+
+  const masterPerms = allPermLabels.map(p =>
+    `<span class="perm-tag active">${p.icon} ${p.label}</span>`
+  ).join('');
+
   const masterCard = `
     <div class="employee-card">
       <div class="emp-avatar">👑</div>
       <div class="emp-name">${MASTER_ADMIN.name}</div>
       <div class="emp-username">@${MASTER_ADMIN.username}</div>
       <div class="emp-role"><span class="badge badge-vip">مدير عام</span></div>
+      <div class="emp-perms">${masterPerms}</div>
     </div>`;
 
   const emps = Object.entries(AppState.employees || {});
@@ -1538,19 +1585,79 @@ function renderEmployees() {
     return;
   }
 
-  container.innerHTML = masterCard + emps.map(([id, emp]) => `
+  container.innerHTML = masterCard + emps.map(([id, emp]) => {
+    const perms = emp.permissions || {};
+    const permTags = allPermLabels.map(p => {
+      const hasPerm = p.key === 'dashboard' ? true : !!perms[p.key];
+      return `<span class="perm-tag ${hasPerm ? 'active' : 'inactive'}">${p.icon} ${p.label}</span>`;
+    }).join('');
+
+    return `
     <div class="employee-card">
       <div class="emp-avatar">👤</div>
       <div class="emp-name">${emp.name}</div>
       <div class="emp-username">@${emp.username}</div>
       <div class="emp-role"><span class="badge badge-${emp.role === 'admin' ? 'vip' : 'reserved'}">${roleLabels[emp.role] || emp.role}</span></div>
+      <div class="emp-perms">${permTags}</div>
       <div class="emp-actions">
-        <button class="btn-primary btn-sm" onclick="editEmployee('${id}')">✏️ تعديل</button>
+        <button class="btn-secondary btn-sm" onclick="showEditEmployeeModal('${id}')">✏️ تعديل</button>
         <button class="btn-danger btn-sm" onclick="deleteEmployee('${id}')">🗑️ حذف</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
+
+window.showEditEmployeeModal = function(empId) {
+  if (AppState.currentUser?.role !== 'superadmin') {
+    showToast('ليس لديك صلاحية لتعديل الموظفين', 'error');
+    return;
+  }
+  const emp = AppState.employees[empId];
+  if (!emp) return;
+
+  document.getElementById('emp-modal-title').textContent = 'تعديل بيانات الموظف';
+  document.getElementById('edit-emp-id').value = empId;
+  document.getElementById('emp-name').value = emp.name || '';
+  document.getElementById('emp-username').value = emp.username || '';
+  document.getElementById('emp-password').value = emp.password || '';
+  document.getElementById('emp-role').value = emp.role || 'receptionist';
+
+  const p = emp.permissions || {};
+  setPermToggle('perm-dashboard',    p.dashboard    !== false);
+  setPermToggle('perm-rooms',        p.rooms        !== false);
+  setPermToggle('perm-reservations', p.reservations !== false);
+  setPermToggle('perm-search',       p.search       !== false);
+  setPermToggle('perm-financial',    !!p.financial);
+  setPermToggle('perm-employees',    !!p.employees);
+  setPermToggle('perm-activity',     p.activity     !== false);
+
+  openModal('employee-modal');
+};
+  if (AppState.currentUser?.role !== 'superadmin') {
+    showToast('ليس لديك صلاحية لتعديل الموظفين', 'error');
+    return;
+  }
+  const emp = AppState.employees[empId];
+  if (!emp) return;
+
+  document.getElementById('emp-modal-title').textContent = 'تعديل بيانات الموظف';
+  document.getElementById('edit-emp-id').value = empId;
+  document.getElementById('emp-name').value = emp.name || '';
+  document.getElementById('emp-username').value = emp.username || '';
+  document.getElementById('emp-password').value = emp.password || '';
+  document.getElementById('emp-role').value = emp.role || 'receptionist';
+
+  const p = emp.permissions || {};
+  setPermToggle('perm-dashboard',    p.dashboard    !== false);
+  setPermToggle('perm-rooms',        p.rooms        !== false);
+  setPermToggle('perm-reservations', p.reservations !== false);
+  setPermToggle('perm-search',       p.search       !== false);
+  setPermToggle('perm-financial',    !!p.financial);
+  setPermToggle('perm-employees',    !!p.employees);
+  setPermToggle('perm-activity',     p.activity     !== false);
+
+  openModal('employee-modal');
+};
 
 window.deleteEmployee = async function(empId) {
   const emp = AppState.employees[empId];
@@ -1825,7 +1932,7 @@ document.addEventListener('keydown', e => {
 // ============================================================
 // TOAST
 // ============================================================
-window.showToast = function(msg, type = 'info', duration = 3000) {
+window.showToast = function(msg, type = 'info') {
   const toast = document.getElementById('toast');
   if (!toast) return;
   toast.textContent = msg;
@@ -1834,16 +1941,22 @@ window.showToast = function(msg, type = 'info', duration = 3000) {
   clearTimeout(AppState.toastTimer);
   AppState.toastTimer = setTimeout(() => {
     toast.classList.add('hidden');
-  }, duration);
+  }, 3000);
 };
 
 // ============================================================
 // HELPERS
 // ============================================================
 function getStatusLabel(status) {
-  const map = { available: 'متاحة', occupied: 'مشغولة', reserved: 'محجوزة', cleaning: 'جار التنظيف', maintenance: 'تحت الصيانة' };
-  return map[status] || 'متاحة';
+  const map = { available: 'شاغرة', occupied: 'مشغولة', reserved: 'محجوزة', cleaning: 'تنظيف', maintenance: 'صيانة' };
+  return map[status] || 'شاغرة';
 }
+
+window.toggleEmpPassword = function() {
+  const inp = document.getElementById('emp-password');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+};
 
 // Make functions globally accessible
 window.renderRooms = renderRooms;
