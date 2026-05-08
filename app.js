@@ -49,7 +49,7 @@ const AppState = {
   currentFilter: 'all',
   offlineQueue: JSON.parse(localStorage.getItem('offlineQueue') || '[]'),
   isOnline: navigator.onLine,
-  theme: localStorage.getItem('theme') || 'light',
+  theme: localStorage.getItem('theme') || 'light', // default is always light
   currentEditRoom: null
 };
 
@@ -71,6 +71,11 @@ const MASTER_ADMIN = {
 document.addEventListener('DOMContentLoaded', async () => {
   initParticles();
   initClock();
+  // Always start with light mode unless user explicitly toggled dark
+  if (!localStorage.getItem('theme')) {
+    AppState.theme = 'light';
+    localStorage.setItem('theme', 'light');
+  }
   applyTheme(AppState.theme);
   setupOnlineStatus();
   setupSidebarBackdrop();
@@ -317,18 +322,20 @@ function loginSuccess(user) {
 
 function enforcePermissions(user) {
   const isSuperAdmin = user.role === 'superadmin';
-  const p = isSuperAdmin
+  const isAdmin = user.role === 'admin';
+  const isPrivileged = isSuperAdmin || isAdmin;
+  const p = isPrivileged
     ? { dashboard: true, rooms: true, reservations: true, search: true, financial: true, employees: true, activity: true }
     : (user.permissions || {});
 
   // Store globally for showSection checks
-  AppState.canViewRooms       = isSuperAdmin || p.rooms        !== false;
-  AppState.canViewReservations= isSuperAdmin || p.reservations !== false;
-  AppState.canViewSearch      = isSuperAdmin || p.search       !== false;
-  AppState.canViewFinancial   = isSuperAdmin || !!p.financial;
-  AppState.canViewEmployees   = isSuperAdmin;
-  AppState.canViewActivity    = isSuperAdmin || p.activity     !== false;
-  AppState.canViewGuests      = isSuperAdmin || p.rooms        !== false;
+  AppState.canViewRooms        = isPrivileged || p.rooms        !== false;
+  AppState.canViewReservations = isPrivileged || p.reservations !== false;
+  AppState.canViewSearch       = isPrivileged || p.search       !== false;
+  AppState.canViewFinancial    = isPrivileged || !!p.financial;
+  AppState.canViewEmployees    = isPrivileged || !!p.employees;
+  AppState.canViewActivity     = isPrivileged || p.activity     !== false;
+  AppState.canViewGuests       = isPrivileged || p.rooms        !== false;
 
   // Show/hide nav items
   function setNav(id, show) {
@@ -336,17 +343,19 @@ function enforcePermissions(user) {
     if (el) el.style.display = show ? '' : 'none';
   }
 
-  setNav('nav-rooms',               AppState.canViewRooms);
-  setNav('nav-financial',           AppState.canViewFinancial);
-  setNav('nav-employees',           AppState.canViewEmployees);
+  setNav('nav-rooms',      AppState.canViewRooms);
+  setNav('nav-financial',  AppState.canViewFinancial);
+  setNav('nav-employees',  AppState.canViewEmployees);
 
-  // Sidebar nav items (by onclick text)
+  // All sidebar + bottom nav items controlled by permission
   document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => {
     const onclick = el.getAttribute('onclick') || '';
-    if (onclick.includes("'reservations'"))  el.style.display = (isSuperAdmin || p.reservations !== false) ? '' : 'none';
-    if (onclick.includes("'search'"))        el.style.display = (isSuperAdmin || p.search       !== false) ? '' : 'none';
-    if (onclick.includes("'activity'"))      el.style.display = (isSuperAdmin || p.activity     !== false) ? '' : 'none';
-    if (onclick.includes("'financial'"))     { setNav('bottom-nav-financial', AppState.canViewFinancial); }
+    if (onclick.includes("'reservations'")) el.style.display = AppState.canViewReservations ? '' : 'none';
+    if (onclick.includes("'search'"))       el.style.display = AppState.canViewSearch       ? '' : 'none';
+    if (onclick.includes("'activity'"))     el.style.display = AppState.canViewActivity      ? '' : 'none';
+    if (onclick.includes("'financial'"))    el.style.display = AppState.canViewFinancial     ? '' : 'none';
+    if (onclick.includes("'employees'"))    el.style.display = AppState.canViewEmployees     ? '' : 'none';
+    if (onclick.includes("'rooms'"))        el.style.display = AppState.canViewRooms         ? '' : 'none';
   });
 
   setNav('bottom-nav-financial', AppState.canViewFinancial);
@@ -1500,6 +1509,7 @@ window.showAddEmployeeModal = function() {
   setPermToggle('perm-activity', true);
 
   openModal('employee-modal');
+  setTimeout(updatePermPreview, 50);
 };
 
 function setPermToggle(id, val) {
@@ -1534,10 +1544,11 @@ window.saveEmployee = async function() {
 
   if (editId) {
     await dbUpdate(`employees/${editId}`, empData);
-    // If this is the currently logged-in user, update session
+    // If this is the currently logged-in user, update session AND permissions
     if (AppState.currentUser?.id === editId) {
       AppState.currentUser = { ...AppState.currentUser, ...empData };
       localStorage.setItem('hotelSession', JSON.stringify(AppState.currentUser));
+      enforcePermissions(AppState.currentUser); // re-apply nav visibility immediately
     }
     logActivity('employee_edit', `تعديل موظف: ${name}`, '👤');
     showToast('تم تحديث بيانات الموظف ✅', 'success');
@@ -1598,6 +1609,12 @@ function renderEmployees() {
       <div class="emp-name">${emp.name}</div>
       <div class="emp-username">@${emp.username}</div>
       <div class="emp-role"><span class="badge badge-${emp.role === 'admin' ? 'vip' : 'reserved'}">${roleLabels[emp.role] || emp.role}</span></div>
+      <div class="emp-password-row">
+        <span class="emp-pass-label">🔒 كلمة المرور:</span>
+        <span class="emp-pass-dots" id="pass-dots-${id}">••••••••</span>
+        <span class="emp-pass-text hidden" id="pass-text-${id}">${emp.password || ''}</span>
+        <button class="btn-show-pass" onclick="toggleEmpPassView('${id}')" title="إظهار/إخفاء كلمة المرور">👁️</button>
+      </div>
       <div class="emp-perms">${permTags}</div>
       <div class="emp-actions">
         <button class="btn-secondary btn-sm" onclick="showEditEmployeeModal('${id}')">✏️ تعديل</button>
@@ -1632,31 +1649,7 @@ window.showEditEmployeeModal = function(empId) {
   setPermToggle('perm-activity',     p.activity     !== false);
 
   openModal('employee-modal');
-};
-  if (AppState.currentUser?.role !== 'superadmin') {
-    showToast('ليس لديك صلاحية لتعديل الموظفين', 'error');
-    return;
-  }
-  const emp = AppState.employees[empId];
-  if (!emp) return;
-
-  document.getElementById('emp-modal-title').textContent = 'تعديل بيانات الموظف';
-  document.getElementById('edit-emp-id').value = empId;
-  document.getElementById('emp-name').value = emp.name || '';
-  document.getElementById('emp-username').value = emp.username || '';
-  document.getElementById('emp-password').value = emp.password || '';
-  document.getElementById('emp-role').value = emp.role || 'receptionist';
-
-  const p = emp.permissions || {};
-  setPermToggle('perm-dashboard',    p.dashboard    !== false);
-  setPermToggle('perm-rooms',        p.rooms        !== false);
-  setPermToggle('perm-reservations', p.reservations !== false);
-  setPermToggle('perm-search',       p.search       !== false);
-  setPermToggle('perm-financial',    !!p.financial);
-  setPermToggle('perm-employees',    !!p.employees);
-  setPermToggle('perm-activity',     p.activity     !== false);
-
-  openModal('employee-modal');
+  setTimeout(updatePermPreview, 50);
 };
 
 window.deleteEmployee = async function(empId) {
@@ -1956,6 +1949,36 @@ window.toggleEmpPassword = function() {
   const inp = document.getElementById('emp-password');
   if (!inp) return;
   inp.type = inp.type === 'password' ? 'text' : 'password';
+};
+
+// Toggle password visibility on employee card
+window.toggleEmpPassView = function(empId) {
+  const dots = document.getElementById(`pass-dots-${empId}`);
+  const text = document.getElementById(`pass-text-${empId}`);
+  if (!dots || !text) return;
+  const isHidden = text.classList.contains('hidden');
+  dots.classList.toggle('hidden', isHidden);
+  text.classList.toggle('hidden', !isHidden);
+};
+
+// Live preview of section visibility when editing permissions
+window.updatePermPreview = function() {
+  const permMap = {
+    dashboard:    'perm-dashboard',
+    rooms:        'perm-rooms',
+    reservations: 'perm-reservations',
+    search:       'perm-search',
+    financial:    'perm-financial',
+    employees:    'perm-employees',
+    activity:     'perm-activity',
+  };
+  document.querySelectorAll('#perm-preview-items .perm-preview-item').forEach(el => {
+    const permKey = el.dataset.perm;
+    const checkbox = document.getElementById(permMap[permKey]);
+    const active = checkbox ? checkbox.checked : false;
+    el.classList.toggle('active', active);
+    el.classList.toggle('inactive', !active);
+  });
 };
 
 // Make functions globally accessible

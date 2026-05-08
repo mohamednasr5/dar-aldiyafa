@@ -2122,6 +2122,29 @@ body.light-mode .form-group textarea {
   color: #ff4d6d;
 }
 
+/* Employee password reveal row */
+.emp-password-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.emp-pass-label { color: var(--text-muted); font-size: 12px; }
+.emp-pass-dots  { letter-spacing: 2px; color: var(--text-secondary); font-size: 14px; }
+.emp-pass-text  { color: var(--accent-blue); font-weight: 600; font-size: 13px; word-break: break-all; }
+.btn-show-pass {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.btn-show-pass:hover { opacity: 1; }
+
 /* ==================== EMPLOYEE MODAL REDESIGN ==================== */
 .modal-emp { max-width: 560px; }
 
@@ -2132,6 +2155,47 @@ body.light-mode .form-group textarea {
   margin: 16px 0 10px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border-color);
+}
+
+/* Live permission preview bar */
+.perm-preview-bar {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.perm-preview-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 8px;
+}
+.perm-preview-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.perm-preview-item {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1.5px solid transparent;
+  transition: all 0.2s;
+}
+.perm-preview-item.active {
+  background: rgba(68,136,255,0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+.perm-preview-item.inactive,
+.perm-preview-item:not(.active) {
+  background: rgba(150,150,150,0.08);
+  border-color: var(--border-color);
+  color: var(--text-muted);
+  opacity: 0.5;
+  text-decoration: line-through;
 }
 
 .perm-toggle-grid {

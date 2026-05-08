@@ -623,6 +623,21 @@
 
       <!-- Permissions -->
       <div class="emp-section-title">🔐 صلاحيات الأقسام</div>
+
+      <!-- Live Preview Bar -->
+      <div class="perm-preview-bar">
+        <span class="perm-preview-label">معاينة الأقسام التي ستظهر للموظف:</span>
+        <div class="perm-preview-items" id="perm-preview-items">
+          <span class="perm-preview-item active" data-perm="dashboard">🏠 لوحة التحكم</span>
+          <span class="perm-preview-item active" data-perm="rooms">🚪 الغرف</span>
+          <span class="perm-preview-item active" data-perm="reservations">📅 الحجوزات</span>
+          <span class="perm-preview-item active" data-perm="search">🔍 البحث</span>
+          <span class="perm-preview-item" data-perm="financial">💰 المالية</span>
+          <span class="perm-preview-item" data-perm="employees">👥 الموظفون</span>
+          <span class="perm-preview-item active" data-perm="activity">📋 النشاط</span>
+        </div>
+      </div>
+
       <div class="perm-toggle-grid">
 
         <div class="perm-toggle-row">
@@ -634,7 +649,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-dashboard" checked disabled>
+            <input type="checkbox" id="perm-dashboard" checked disabled onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -648,7 +663,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-rooms" checked>
+            <input type="checkbox" id="perm-rooms" checked onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -662,7 +677,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-reservations" checked>
+            <input type="checkbox" id="perm-reservations" checked onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -676,7 +691,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-search" checked>
+            <input type="checkbox" id="perm-search" checked onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -690,7 +705,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-financial">
+            <input type="checkbox" id="perm-financial" onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -704,7 +719,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-employees">
+            <input type="checkbox" id="perm-employees" onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -718,7 +733,7 @@
             </div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="perm-activity" checked>
+            <input type="checkbox" id="perm-activity" checked onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>
