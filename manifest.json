@@ -2,59 +2,59 @@
   "name": "دار الضيافة بالمنصورة",
   "short_name": "دار الضيافة",
   "description": "نظام إدارة فندق دار الضيافة بالمنصورة - Dar Al Diyafa Mansoura Hotel Management System",
-  "start_url": "https://mohamednasr5.github.io/dar-aldiyafa/",
+  "start_url": "/dar-aldiyafa/index.html",
   "display": "standalone",
-  "background_color": "#0a0a1a",
-  "theme_color": "#0a0a1a",
+  "background_color": "#f0f2f8",
+  "theme_color": "#4488ff",
   "orientation": "portrait-primary",
   "lang": "ar",
   "dir": "rtl",
-  "scope": "/",
+  "scope": "/dar-aldiyafa/",
   "icons": [
     {
-      "src": "assets/icon-72.png",
+      "src": "/dar-aldiyafa/assets/icon-72.png",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-96.png",
+      "src": "/dar-aldiyafa/assets/icon-96.png",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-128.png",
+      "src": "/dar-aldiyafa/assets/icon-128.png",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-144.png",
+      "src": "/dar-aldiyafa/assets/icon-144.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-152.png",
+      "src": "/dar-aldiyafa/assets/icon-152.png",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-192.png",
+      "src": "/dar-aldiyafa/assets/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-384.png",
+      "src": "/dar-aldiyafa/assets/icon-384.png",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-512.png",
+      "src": "/dar-aldiyafa/assets/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -62,33 +62,46 @@
   ],
   "screenshots": [
     {
-      "src": "assets/screenshot-wide.png",
+      "src": "/dar-aldiyafa/assets/screenshot-wide.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide"
     },
     {
-      "src": "assets/screenshot-narrow.png",
+      "src": "/dar-aldiyafa/assets/screenshot-narrow.png",
       "sizes": "750x1334",
       "type": "image/png",
       "form_factor": "narrow"
     }
   ],
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "shortcuts": [
     {
       "name": "الغرف",
       "short_name": "الغرف",
       "description": "عرض جميع الغرف",
-      "url": "/index.html#rooms",
-      "icons": [{ "src": "assets/icon-96.png", "sizes": "96x96" }]
+      "url": "/dar-aldiyafa/index.html#rooms",
+      "icons": [
+        {
+          "src": "/dar-aldiyafa/assets/icon-96.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "التقارير المالية",
       "short_name": "المالية",
       "description": "التقارير المالية",
-      "url": "/index.html#finance",
-      "icons": [{ "src": "assets/icon-96.png", "sizes": "96x96" }]
+      "url": "/dar-aldiyafa/index.html#finance",
+      "icons": [
+        {
+          "src": "/dar-aldiyafa/assets/icon-96.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ]
 }

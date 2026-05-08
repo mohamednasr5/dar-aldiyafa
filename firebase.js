@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Register Service Worker
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('service-worker.js');
+      await navigator.serviceWorker.register('/dar-aldiyafa/service-worker.js');
     } catch(e) {
       console.log('SW registration skipped:', e.message);
     }

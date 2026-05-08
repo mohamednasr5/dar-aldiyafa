@@ -10,13 +10,13 @@ const DYNAMIC_CACHE = 'dar-aldiyafa-dynamic-v1';
 
 // Files to cache immediately on install
 const STATIC_FILES = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/firebase.js',
-  '/manifest.json',
-  '/assets/icon-192.png',
-  '/assets/icon-512.png',
+  '/dar-aldiyafa/',
+  '/dar-aldiyafa/index.html',
+  '/dar-aldiyafa/style.css',
+  '/dar-aldiyafa/firebase.js',
+  '/dar-aldiyafa/manifest.json',
+  '/dar-aldiyafa/assets/icon-192.png',
+  '/dar-aldiyafa/assets/icon-512.png',
   // Google Fonts
   'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@300;400;600;700;900&family=Playfair+Display:wght@400;700;900&display=swap',
 ];
@@ -96,12 +96,14 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(request)
         .then(response => {
-          const clonedResponse = response.clone();
-          caches.open(STATIC_CACHE).then(cache => cache.put(request, clonedResponse));
+          if (response && response.ok) {
+            const clonedResponse = response.clone();
+            caches.open(STATIC_CACHE).then(cache => cache.put(request, clonedResponse));
+          }
           return response;
         })
         .catch(() => {
-          return caches.match('/index.html');
+          return caches.match('/dar-aldiyafa/index.html');
         })
     );
     return;
