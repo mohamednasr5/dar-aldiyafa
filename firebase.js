@@ -378,38 +378,63 @@ function loginSuccess(user) {
   AppState.currentUser = user;
   localStorage.setItem('hotelSession', JSON.stringify(user));
 
-  // Update UI
   document.getElementById('current-user-name').textContent = user.name;
   document.getElementById('sidebar-user-name').textContent = user.name;
   document.getElementById('sidebar-user-role').textContent =
     user.role === 'superadmin' ? 'مدير النظام' :
     user.role === 'admin' ? 'مدير' :
-    user.role === 'manager' ? 'مدير' : 'موظف استقبال';
+    user.role === 'manager' ? 'مدير قسم' : 'موظف استقبال';
 
-  // Show/hide admin features
-  if (user.role !== 'superadmin' && user.role !== 'admin') {
-    const navEmp = document.getElementById('nav-employees');
-    if (navEmp) navEmp.style.display = 'none';
-  }
+  // Apply section permissions
+  enforcePermissions(user);
 
-  // Transition to main app
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('main-app').classList.remove('hidden');
 
-  // Log login
   logActivity('login', `تسجيل دخول: ${user.name}`, '🔑');
 
-  // Welcome message
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : hour < 17 ? 'مساء الخير' : 'مساء النور';
   const roleLabel = user.role === 'superadmin' ? 'مدير النظام' : user.role === 'admin' ? 'مدير' : 'موظف استقبال';
   setTimeout(() => {
-    showToast(`${greeting}، ${user.name} 👋\nأهلاً بك في نظام دار الضيافة — ${roleLabel}`, 'success', 5000);
+    showToast(`${greeting}، ${user.name} 👋`, 'success');
   }, 600);
 
-  // Load data
   initDataListeners();
   updateFinancials();
+  requestNotificationPermission();
+  setTimeout(startCheckoutNotifications, 3000);
+}
+
+function enforcePermissions(user) {
+  const isSuperAdmin = user.role === 'superadmin';
+  const p = user.permissions || {};
+
+  AppState.canViewRooms        = isSuperAdmin || p.rooms        !== false;
+  AppState.canViewReservations = isSuperAdmin || p.reservations !== false;
+  AppState.canViewSearch       = isSuperAdmin || p.search       !== false;
+  AppState.canViewFinancial    = isSuperAdmin || !!p.financial;
+  AppState.canViewEmployees    = isSuperAdmin;
+  AppState.canViewActivity     = isSuperAdmin || p.activity     !== false;
+  AppState.canViewGuests       = isSuperAdmin || p.rooms        !== false;
+
+  function setEl(id, show) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  }
+
+  setEl('nav-rooms',             AppState.canViewRooms);
+  setEl('nav-financial',         AppState.canViewFinancial);
+  setEl('nav-employees',         AppState.canViewEmployees);
+  setEl('bottom-nav-financial',  AppState.canViewFinancial);
+
+  // Handle nav items by onclick attribute for sections without dedicated IDs
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => {
+    const oc = el.getAttribute('onclick') || '';
+    if (oc.includes("'reservations'"))  el.style.display = AppState.canViewReservations ? '' : 'none';
+    if (oc.includes("'search'"))        el.style.display = AppState.canViewSearch       ? '' : 'none';
+    if (oc.includes("'activity'"))      el.style.display = AppState.canViewActivity     ? '' : 'none';
+  });
 }
 
 window.doLogout = function() {
@@ -474,6 +499,20 @@ function initDataListeners() {
 // NAVIGATION
 // ============================================================
 window.showSection = function(name) {
+  // Permission check
+  const sectionPerms = {
+    rooms:        AppState.canViewRooms,
+    reservations: AppState.canViewReservations,
+    search:       AppState.canViewSearch,
+    financial:    AppState.canViewFinancial,
+    employees:    AppState.canViewEmployees,
+    activity:     AppState.canViewActivity,
+  };
+  if (name in sectionPerms && sectionPerms[name] === false) {
+    showToast('ليس لديك صلاحية للوصول إلى هذا القسم', 'error');
+    return;
+  }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
@@ -482,9 +521,8 @@ window.showSection = function(name) {
   if (sec) sec.classList.add('active');
 
   if (name === 'financial') updateFinancials();
-  if (name === 'rooms') { renderRooms(); updateRoomsTable(); }
+  if (name === 'rooms') { renderRoomsTable(); }
 
-  // Close sidebar on mobile
   if (window.innerWidth <= 768) {
     document.getElementById('sidebar').classList.remove('open');
     document.querySelector('.sidebar-backdrop')?.classList.remove('active');
@@ -656,32 +694,73 @@ function setText(id, val) {
 }
 
 // ============================================================
-// ROOMS TABLE
+// ROOMS TABLE + SMART DROPDOWN FILTER
 // ============================================================
-function updateRoomsTable() {
+AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
+
+window.applyDropdownFilter = function() {
+  AppState.smartFilter.status = document.getElementById('filter-status')?.value || 'all';
+  AppState.smartFilter.type   = document.getElementById('filter-type')?.value   || 'all';
+  AppState.smartFilter.floor  = document.getElementById('filter-floor')?.value  || 'all';
+  renderRoomsTable();
+};
+
+window.resetDropdownFilter = function() {
+  AppState.smartFilter = { status: 'all', type: 'all', floor: 'all' };
+  const fs = document.getElementById('filter-status');
+  const ft = document.getElementById('filter-type');
+  const ff = document.getElementById('filter-floor');
+  if (fs) fs.value = 'all';
+  if (ft) ft.value = 'all';
+  if (ff) ff.value = 'all';
+  renderRoomsTable();
+};
+
+function updateRoomsTable() { renderRoomsTable(); }
+
+function renderRoomsTable() {
   const tbody = document.getElementById('rooms-table-body');
   if (!tbody) return;
 
-  const rooms = Object.entries(AppState.rooms);
+  const sf = AppState.smartFilter || { status: 'all', type: 'all', floor: 'all' };
+  let rooms = Object.entries(AppState.rooms);
+
   if (!rooms.length) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">لا توجد غرف</td></tr>`;
+    const c = document.getElementById('rooms-filter-count');
+    if (c) c.textContent = '0 غرفة';
     return;
   }
+
+  // Apply filters
+  if (sf.status !== 'all') rooms = rooms.filter(([,r]) => (r.status || 'available') === sf.status);
+  if (sf.type   !== 'all') rooms = rooms.filter(([,r]) => sf.type === 'vip' ? r.type === 'vip' : r.type !== 'vip');
+  if (sf.floor  !== 'all') rooms = rooms.filter(([,r]) => String(r.floor) === String(sf.floor));
 
   rooms.sort(([,a],[,b]) => {
     if (a.floor !== b.floor) return a.floor - b.floor;
     return String(a.number).localeCompare(String(b.number), 'ar', {numeric:true});
   });
 
+  const countEl = document.getElementById('rooms-filter-count');
+  if (countEl) countEl.textContent = `${rooms.length} غرفة`;
+
+  if (!rooms.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">لا توجد غرف تطابق الفلتر المحدد</td></tr>`;
+    return;
+  }
+
+  const statusMap = {
+    available:   ['badge-available','متاحة ✅'],
+    occupied:    ['badge-occupied','مشغولة 🔴'],
+    reserved:    ['badge-reserved','محجوزة 🟠'],
+    cleaning:    ['badge-cleaning','تنظيف 🔵'],
+    maintenance: ['badge-maintenance','صيانة ⚙️']
+  };
+
   tbody.innerHTML = rooms.map(([id, room]) => {
     const guest = AppState.guests[id];
-    const statusMap = {
-      available: ['badge-available','متاحة'], occupied: ['badge-occupied','مشغولة'],
-      reserved: ['badge-reserved','محجوزة'], cleaning: ['badge-cleaning','جار التنظيف'],
-      maintenance: ['badge-maintenance','تحت الصيانة']
-    };
     const [badgeClass, label] = statusMap[room.status] || ['badge-available','متاحة'];
-
     return `
     <tr>
       <td><strong>${room.number}</strong></td>
