@@ -71,12 +71,10 @@ const MASTER_ADMIN = {
 document.addEventListener('DOMContentLoaded', async () => {
   initParticles();
   initClock();
-  // Always start with light mode unless user explicitly toggled dark
-  if (!localStorage.getItem('theme')) {
-    AppState.theme = 'light';
-    localStorage.setItem('theme', 'light');
-  }
-  applyTheme(AppState.theme);
+  // Always start with light mode - force it regardless of saved preference
+  AppState.theme = 'light';
+  localStorage.setItem('theme', 'light');
+  applyTheme('light');
   setupOnlineStatus();
   setupSidebarBackdrop();
 
@@ -711,8 +709,9 @@ function renderRooms() {
     const remainingDays = guest?.checkoutDate ?
       calcRemainingDays(guest.checkoutDate) : '';
 
-    const keyIcon = room.keyWithReception ?
-      `<span class="key-icon" title="المفتاح مع الاستقبال">🗝️</span>` : '';
+    const keyIcon = (room.status === 'available' || !room.status)
+      ? `<span class="key-icon" title="🗝️ المفتاح مع الدار">🗝️ مع الدار</span>`
+      : (room.keyWithReception ? `<span class="key-icon" title="المفتاح مع الاستقبال">🗝️</span>` : '');
 
     const vipClass = room.type === 'vip' ? 'vip' : '';
     const vipBadge = room.type === 'vip' ?
@@ -838,13 +837,15 @@ function renderRoomsTable() {
   tbody.innerHTML = rooms.map(([id, room]) => {
     const guest = AppState.guests[id];
     const [badgeClass, label] = statusMap[room.status] || ['badge-available','شاغرة'];
+    const tableKeyIcon = (room.status === 'available' || !room.status)
+      ? `<span class="key-icon" style="font-size:14px;" title="المفتاح مع الدار">🗝️ مع الدار</span>` : '';
 
     return `
     <tr>
       <td><strong>${room.number}</strong></td>
       <td>${room.type === 'vip' ? '<span class="badge badge-vip">👑 VIP</span>' : 'عادية'}</td>
       <td>الدور ${room.floor}</td>
-      <td><span class="badge ${badgeClass}">${label}</span></td>
+      <td><span class="badge ${badgeClass}">${label}</span> ${tableKeyIcon}</td>
       <td>${guest?.name || '-'}</td>
       <td>
         <div style="display:flex;gap:8px">
