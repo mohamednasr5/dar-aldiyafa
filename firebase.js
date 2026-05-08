@@ -1450,11 +1450,14 @@ window.saveEmployee = async function() {
     showToast('يرجى ملء جميع الحقول المطلوبة', 'error'); return;
   }
 
+  const getChecked = id => { const el = document.getElementById(id); return el ? el.checked : false; };
   const permissions = {
-    rooms: document.getElementById('perm-rooms').checked,
-    guests: document.getElementById('perm-guests').checked,
-    financial: document.getElementById('perm-financial').checked,
-    employees: document.getElementById('perm-employees').checked
+    rooms: getChecked('perm-rooms'),
+    reservations: getChecked('perm-reservations'),
+    search: getChecked('perm-search'),
+    financial: getChecked('perm-financial'),
+    employees: getChecked('perm-employees'),
+    activity: getChecked('perm-activity')
   };
 
   const empData = { name, username, password, role, permissions, createdAt: Date.now() };

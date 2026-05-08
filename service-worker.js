@@ -140,9 +140,10 @@ self.addEventListener('fetch', event => {
     caches.match(request).then(cached => {
       if (cached) {
         // Return cached, but also update in background
-        const networkFetch = fetch(request).then(response => {
-          caches.open(STATIC_CACHE).then(cache => cache.put(request, response.clone()));
-          return response;
+        fetch(request).then(response => {
+          if (response && response.ok) {
+            caches.open(STATIC_CACHE).then(cache => cache.put(request, response.clone()));
+          }
         }).catch(() => {});
         return cached;
       }

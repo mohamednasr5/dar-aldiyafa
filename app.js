@@ -49,7 +49,7 @@ const AppState = {
   currentFilter: 'all',
   offlineQueue: JSON.parse(localStorage.getItem('offlineQueue') || '[]'),
   isOnline: navigator.onLine,
-  theme: localStorage.getItem('theme') || 'dark',
+  theme: localStorage.getItem('theme') || 'light',
   currentEditRoom: null
 };
 
