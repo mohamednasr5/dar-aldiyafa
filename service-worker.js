@@ -13,7 +13,7 @@ const STATIC_FILES = [
   '/dar-aldiyafa/',
   '/dar-aldiyafa/index.html',
   '/dar-aldiyafa/style.css',
-  '/dar-aldiyafa/firebase.js',
+  '/dar-aldiyafa/app.js',
   '/dar-aldiyafa/manifest.json',
   '/dar-aldiyafa/assets/icon-192.png',
   '/dar-aldiyafa/assets/icon-512.png',

@@ -857,8 +857,6 @@ function renderRoomsTable() {
     </tr>`;
   }).join('');
 }
-  }).join('');
-}
 
 // ============================================================
 // OPEN ROOM MODAL (Guest Form)
