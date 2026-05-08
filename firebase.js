@@ -1685,13 +1685,13 @@ window.generateInvoice = function() {
         <span class="invoice-row-label">السعر لليلة</span>
         <span class="invoice-row-value">${(guest?.pricePerNight||0).toLocaleString('ar-EG')} جنيه</span>
       </div>
-      \${Array.isArray(guest?.companions) && guest.companions.length > 0 ? `
+      ${Array.isArray(guest?.companions) && guest.companions.length > 0 ? `
       <div style="margin:10px 0 4px;font-weight:700;font-size:13px;color:#555;border-bottom:1px dashed #ddd;padding-bottom:4px;">👥 المرافقون</div>
-      \${guest.companions.map((c, i) => \`
+      ${guest.companions.map((c, i) => `
       <div class="invoice-row" style="font-size:13px;">
-        <span class="invoice-row-label">\${i+1}. \${c.name || '-'}</span>
-        <span class="invoice-row-value" style="font-size:12px;color:#666;">\${c.nationalId ? 'ر.ق: ' + c.nationalId : ''}</span>
-      </div>\`).join('')}` : ''}
+        <span class="invoice-row-label">${i+1}. ${c.name || '-'}</span>
+        <span class="invoice-row-value" style="font-size:12px;color:#666;">${c.nationalId ? 'ر.ق: ' + c.nationalId : ''}</span>
+      </div>`).join('')}` : ''}
 
       <div class="invoice-total">
         <div class="invoice-row">
@@ -1748,7 +1748,7 @@ window.sendInvoiceWhatsApp = function() {
 📅 الوصول: ${guest?.checkinDate || '-'}
 📅 المغادرة: ${guest?.checkoutDate || '-'}
 🌙 عدد الأيام: ${guest?.days || 0}
-💵 السعر لليلة: ${(guest?.pricePerNight||0).toLocaleString()} ج\${companionsList}
+💵 السعر لليلة: ${(guest?.pricePerNight||0).toLocaleString()} ج${companionsList}
 
 ━━━━━━━━━━━━━━━━
 💰 الإجمالي: *${(guest?.total||0).toLocaleString()} جنيه*
