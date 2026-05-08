@@ -1436,6 +1436,43 @@ window.showAddEmployeeModal = function() {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('emp-role').value = 'receptionist';
+  // Reset all permissions to defaults
+  const defaults = { 'perm-rooms': true, 'perm-reservations': true, 'perm-search': true, 'perm-financial': false, 'perm-employees': false, 'perm-activity': true };
+  Object.entries(defaults).forEach(([id, val]) => {
+    const el = document.getElementById(id); if (el && !el.disabled) el.checked = val;
+  });
+  openModal('employee-modal');
+};
+
+window.editEmployee = function(empId) {
+  if (AppState.currentUser?.role !== 'superadmin') {
+    showToast('ليس لديك صلاحية لتعديل الموظفين', 'error');
+    return;
+  }
+  const emp = AppState.employees[empId];
+  if (!emp) { showToast('لم يتم العثور على الموظف', 'error'); return; }
+
+  document.getElementById('emp-modal-title').textContent = 'تعديل بيانات الموظف';
+  document.getElementById('edit-emp-id').value = empId;
+  document.getElementById('emp-name').value = emp.name || '';
+  document.getElementById('emp-username').value = emp.username || '';
+  document.getElementById('emp-password').value = emp.password || '';
+  document.getElementById('emp-role').value = emp.role || 'receptionist';
+
+  // Fill permissions
+  const p = emp.permissions || {};
+  const permMap = {
+    'perm-rooms': p.rooms !== false,
+    'perm-reservations': p.reservations !== false,
+    'perm-search': p.search !== false,
+    'perm-financial': !!p.financial,
+    'perm-employees': !!p.employees,
+    'perm-activity': p.activity !== false
+  };
+  Object.entries(permMap).forEach(([id, val]) => {
+    const el = document.getElementById(id); if (el && !el.disabled) el.checked = val;
+  });
+
   openModal('employee-modal');
 };
 
@@ -1446,8 +1483,11 @@ window.saveEmployee = async function() {
   const role = document.getElementById('emp-role').value;
   const editId = document.getElementById('edit-emp-id').value;
 
-  if (!name || !username || !password) {
-    showToast('يرجى ملء جميع الحقول المطلوبة', 'error'); return;
+  if (!name || !username) {
+    showToast('يرجى ملء الاسم واسم المستخدم', 'error'); return;
+  }
+  if (!editId && !password) {
+    showToast('يرجى إدخال كلمة المرور للموظف الجديد', 'error'); return;
   }
 
   const getChecked = id => { const el = document.getElementById(id); return el ? el.checked : false; };
@@ -1460,7 +1500,9 @@ window.saveEmployee = async function() {
     activity: getChecked('perm-activity')
   };
 
-  const empData = { name, username, password, role, permissions, createdAt: Date.now() };
+  const existing = editId ? (AppState.employees[editId] || {}) : {};
+  const finalPassword = password || existing.password || '';
+  const empData = { name, username, password: finalPassword, role, permissions, createdAt: existing.createdAt || Date.now() };
 
   if (editId) {
     await dbUpdate(`employees/${editId}`, empData);
@@ -1503,6 +1545,7 @@ function renderEmployees() {
       <div class="emp-username">@${emp.username}</div>
       <div class="emp-role"><span class="badge badge-${emp.role === 'admin' ? 'vip' : 'reserved'}">${roleLabels[emp.role] || emp.role}</span></div>
       <div class="emp-actions">
+        <button class="btn-primary btn-sm" onclick="editEmployee('${id}')">✏️ تعديل</button>
         <button class="btn-danger btn-sm" onclick="deleteEmployee('${id}')">🗑️ حذف</button>
       </div>
     </div>

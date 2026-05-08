@@ -4,17 +4,17 @@
    ==================================================== */
 
 :root {
-  /* Dark Theme */
-  --bg-primary: #060818;
-  --bg-secondary: #0d1230;
-  --bg-card: rgba(255,255,255,0.04);
-  --bg-card-hover: rgba(255,255,255,0.08);
-  --bg-glass: rgba(13,18,48,0.8);
-  --border-color: rgba(255,255,255,0.08);
-  --border-glow: rgba(100,140,255,0.3);
-  --text-primary: #e8eaf6;
-  --text-secondary: #8892b0;
-  --text-muted: #4a5580;
+  /* Light Theme (Default) */
+  --bg-primary: #f0f2f8;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255,255,255,0.9);
+  --bg-card-hover: rgba(255,255,255,1);
+  --bg-glass: rgba(240,242,248,0.95);
+  --border-color: rgba(0,0,0,0.08);
+  --border-glow: rgba(68,136,255,0.2);
+  --text-primary: #1a1f3a;
+  --text-secondary: #4a5580;
+  --text-muted: #8892b0;
 
   /* Accent Colors */
   --gold: #f0c040;
@@ -52,7 +52,23 @@
   --shadow-gold: 0 0 30px rgba(240,192,64,0.3);
 }
 
-/* Light Mode */
+/* Dark Mode */
+body.dark-mode {
+  --bg-primary: #060818;
+  --bg-secondary: #0d1230;
+  --bg-card: rgba(255,255,255,0.04);
+  --bg-card-hover: rgba(255,255,255,0.08);
+  --bg-glass: rgba(13,18,48,0.8);
+  --border-color: rgba(255,255,255,0.08);
+  --border-glow: rgba(100,140,255,0.3);
+  --text-primary: #e8eaf6;
+  --text-secondary: #8892b0;
+  --text-muted: #4a5580;
+  --shadow-card: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-glow: 0 0 30px rgba(68,136,255,0.2);
+}
+
+/* Light Mode (kept for explicit class, same as :root defaults) */
 body.light-mode {
   --bg-primary: #f0f2f8;
   --bg-secondary: #ffffff;
