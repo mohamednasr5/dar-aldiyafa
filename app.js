@@ -50,7 +50,8 @@ const AppState = {
   offlineQueue: JSON.parse(localStorage.getItem('offlineQueue') || '[]'),
   isOnline: navigator.onLine,
   theme: localStorage.getItem('theme') || 'light', // default is always light
-  currentEditRoom: null
+  currentEditRoom: null,
+  finPeriod: 'day'
 };
 
 // ============================================================
@@ -426,6 +427,7 @@ window.showSection = function(name) {
     financial:    AppState.canViewFinancial,
     employees:    AppState.canViewEmployees,
     activity:     AppState.canViewActivity,
+    'guests-list': AppState.canViewGuests,
   };
 
   if (name in sectionPerms && !sectionPerms[name]) {
@@ -440,6 +442,7 @@ window.showSection = function(name) {
   if (sec) sec.classList.add('active');
 
   if (name === 'financial') updateFinancials();
+  if (name === 'guests-list') renderGuestsList();
 
   // Close sidebar on mobile
   if (window.innerWidth <= 768) {
@@ -562,6 +565,9 @@ function showCheckoutNotification(roomId, room, guest, diffMins) {
           💬 واتساب
         </button>
       ` : ''}
+      <button class="btn-extend-notif" onclick="extendStayFromNotif('${roomId}', '${existingId}')">
+        🗓️ تمديد الإقامة
+      </button>
       <button class="btn-checkout-notif" onclick="quickCheckoutFromNotif('${roomId}', '${existingId}')">
         🚪 تم تسجيل الخروج
       </button>
@@ -629,6 +635,95 @@ window.quickCheckoutFromNotif = async function(roomId, notifId) {
 
   const el = document.getElementById(notifId);
   if (el) el.remove();
+};
+
+// ============================================================
+// EXTEND STAY FROM NOTIFICATION
+// ============================================================
+window.extendStayFromNotif = function(roomId, notifId) {
+  const room = AppState.rooms[roomId];
+  const guest = AppState.guests[roomId];
+  if (!room || !guest) return;
+
+  // Remove any old extend modal
+  const oldOverlay = document.getElementById('extend-modal-overlay');
+  if (oldOverlay) oldOverlay.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'extend-modal-overlay';
+  overlay.className = 'extend-modal-overlay';
+  overlay.innerHTML = `
+    <div class="extend-modal-box">
+      <h3>🗓️ تمديد إقامة ${guest.name || 'النزيل'}</h3>
+      <label>تاريخ المغادرة الحالي</label>
+      <input type="text" value="${guest.checkoutDate || '-'} الساعة ${guest.checkoutTime || '12:00'}" readonly style="opacity:0.6;cursor:default;">
+      <label>عدد أيام التمديد الإضافية</label>
+      <input type="number" id="extend-days-input" min="1" max="365" value="1" placeholder="أدخل عدد الأيام">
+      <div class="extend-modal-actions">
+        <button class="btn-extend-cancel" onclick="document.getElementById('extend-modal-overlay').remove()">إلغاء</button>
+        <button class="btn-extend-confirm" onclick="confirmExtendStay('${roomId}', '${notifId}')">✅ تأكيد التمديد</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Close on overlay click (outside box)
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  setTimeout(() => {
+    const inp = document.getElementById('extend-days-input');
+    if (inp) inp.focus();
+  }, 100);
+};
+
+window.confirmExtendStay = async function(roomId, notifId) {
+  const guest = AppState.guests[roomId];
+  const room = AppState.rooms[roomId];
+  if (!guest) return;
+
+  const extraDays = parseInt(document.getElementById('extend-days-input')?.value) || 0;
+  if (extraDays < 1) {
+    alert('يرجى إدخال عدد أيام صحيح (1 على الأقل)');
+    return;
+  }
+
+  // Calculate new checkout date
+  const oldCheckout = new Date(guest.checkoutDate);
+  oldCheckout.setDate(oldCheckout.getDate() + extraDays);
+  const newCheckoutDate = oldCheckout.toISOString().split('T')[0];
+
+  // Update totals
+  const newDays = (guest.days || 0) + extraDays;
+  const newTotal = newDays * (parseFloat(guest.pricePerNight) || 0);
+  const newRemaining = newTotal - (parseFloat(guest.paid) || 0);
+
+  const updatedGuest = {
+    ...guest,
+    checkoutDate: newCheckoutDate,
+    days: newDays,
+    total: newTotal,
+    remaining: newRemaining,
+    updatedAt: Date.now(),
+    updatedBy: AppState.currentUser?.name || 'غير معروف'
+  };
+
+  await dbSet(`guests/${roomId}`, updatedGuest);
+
+  logActivity('extend', `تمديد إقامة ${guest.name} في الغرفة ${room?.number} بـ ${extraDays} يوم حتى ${newCheckoutDate}`, '🗓️');
+  
+  // Remove extend modal and notification
+  const overlay = document.getElementById('extend-modal-overlay');
+  if (overlay) overlay.remove();
+  const notifEl = document.getElementById(notifId);
+  if (notifEl) notifEl.remove();
+
+  // Clear notified flag so it can trigger again when needed
+  const notifKey = `notified_${roomId}_${guest.checkoutDate}`;
+  localStorage.removeItem(notifKey);
+
+  showToast(`✅ تم تمديد إقامة ${guest.name} حتى ${newCheckoutDate} (${newDays} يوم إجمالاً)`, 'success');
 };
 
 // Request notification permission on login
@@ -1343,83 +1438,230 @@ window.reuseGuestInfo = async function(phone) {
 // ============================================================
 // FINANCIAL
 // ============================================================
+// ============================================================
+// FINANCIAL PERIOD STATE
+// ============================================================
+AppState.finPeriod = 'day'; // default: today
+
+window.setFinPeriod = function(period, btn) {
+  AppState.finPeriod = period;
+
+  // Update active button
+  document.querySelectorAll('.fin-period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else {
+    // For custom, mark none active
+    document.querySelectorAll('.fin-period-btn').forEach(b => {
+      if (b.dataset.period === 'custom') b.classList.add('active');
+    });
+  }
+
+  updateFinancials();
+};
+
+window.toggleFinCustomRange = function() {
+  const el = document.getElementById('fin-custom-range');
+  if (!el) return;
+  const show = el.style.display === 'none' || !el.style.display;
+  el.style.display = show ? 'flex' : 'none';
+  if (show) {
+    // Set defaults if empty
+    const today = new Date().toISOString().split('T')[0];
+    const finFrom = document.getElementById('fin-from');
+    const finTo = document.getElementById('fin-to');
+    if (finFrom && !finFrom.value) finFrom.value = today;
+    if (finTo && !finTo.value) finTo.value = today;
+    AppState.finPeriod = 'custom';
+    document.querySelectorAll('.fin-period-btn').forEach(b => b.classList.remove('active'));
+    updateFinancials();
+  }
+};
+
+function getFinDateRange() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
+
+  switch (AppState.finPeriod) {
+    case 'day':
+      return { from: todayStr, to: todayStr };
+    case 'week': {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      return { from: start.toISOString().split('T')[0], to: todayStr };
+    }
+    case 'month': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { from: start.toISOString().split('T')[0], to: todayStr };
+    }
+    case 'year': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { from: start.toISOString().split('T')[0], to: todayStr };
+    }
+    case 'custom': {
+      const from = document.getElementById('fin-from')?.value || todayStr;
+      const to = document.getElementById('fin-to')?.value || todayStr;
+      return { from, to };
+    }
+    case 'all':
+    default:
+      return { from: '2000-01-01', to: '2099-12-31' };
+  }
+}
+
 window.updateFinancials = function() {
-  const guests = Object.values(AppState.guests || {});
+  const currentGuests = Object.values(AppState.guests || {});
   const history = Object.values(AppState.checkoutHistory || {});
 
+  // All records combined — current + archived (never deleted)
+  const allGuests = [...currentGuests, ...history];
+
   const today = new Date().toISOString().split('T')[0];
+  const thisWeekStart = (() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toISOString().split('T')[0]; })();
   const thisMonth = today.substring(0, 7);
   const thisYear = today.substring(0, 4);
 
-  let daily = 0, monthly = 0, yearly = 0, totalRemaining = 0;
-
-  // دمج النزلاء الحاليين مع سجل المغادرين (لا تُحذف الإحصائيات أبداً)
-  const allGuests = [...guests, ...history];
-
+  // Always-visible summary cards (never affected by filter)
+  let sumDaily = 0, sumWeekly = 0, sumMonthly = 0, sumYearly = 0;
   allGuests.forEach(g => {
     const d = g.checkinDate || '';
     const paid = parseFloat(g.paid) || 0;
-    const remaining = parseFloat(g.remaining) || 0;
+    if (d === today) sumDaily += paid;
+    if (d >= thisWeekStart && d <= today) sumWeekly += paid;
+    if (d.startsWith(thisMonth)) sumMonthly += paid;
+    if (d.startsWith(thisYear)) sumYearly += paid;
+  });
+  setText('fin-daily',   sumDaily.toLocaleString('ar-EG') + ' ج');
+  setText('fin-weekly',  sumWeekly.toLocaleString('ar-EG') + ' ج');
+  setText('fin-monthly', sumMonthly.toLocaleString('ar-EG') + ' ج');
+  setText('fin-yearly',  sumYearly.toLocaleString('ar-EG') + ' ج');
+  setText('stat-revenue', sumDaily.toLocaleString('ar-EG'));
 
-    if (d === today) daily += paid;
-    if (d.startsWith(thisMonth)) monthly += paid;
-    if (d.startsWith(thisYear)) yearly += paid;
-    // المتبقي فقط للنزلاء الحاليين
-    if (guests.find(cg => cg.phone === g.phone && cg.checkinDate === g.checkinDate)) {
+  // Filtered stats (based on selected period)
+  const { from, to } = getFinDateRange();
+  const filtered = allGuests.filter(g => {
+    const d = g.checkinDate || '';
+    return d >= from && d <= to;
+  });
+
+  let totalPaid = 0, totalRevenue = 0, totalRemaining = 0;
+  filtered.forEach(g => {
+    const paid = parseFloat(g.paid) || 0;
+    const remaining = parseFloat(g.remaining) || 0;
+    const total = parseFloat(g.total) || 0;
+    totalPaid += paid;
+    totalRevenue += total;
+    // مبالغ متبقية فقط للنزلاء الحاليين المشمولين في الفلتر
+    if (currentGuests.find(cg => cg.roomId === g.roomId && cg.checkinDate === g.checkinDate)) {
       totalRemaining += remaining;
     }
   });
 
-  setText('fin-daily', daily.toLocaleString('ar-EG') + ' ج');
-  setText('fin-monthly', monthly.toLocaleString('ar-EG') + ' ج');
-  setText('fin-yearly', yearly.toLocaleString('ar-EG') + ' ج');
-  setText('fin-remaining', totalRemaining.toLocaleString('ar-EG') + ' ج');
-  setText('stat-revenue', daily.toLocaleString('ar-EG'));
+  setText('fin-total-paid',    totalPaid.toLocaleString('ar-EG') + ' ج');
+  setText('fin-remaining',     totalRemaining.toLocaleString('ar-EG') + ' ج');
+  setText('fin-count',         filtered.length.toString());
+  setText('fin-total-revenue', totalRevenue.toLocaleString('ar-EG') + ' ج');
 
-  renderTransactionsList(allGuests);
-  renderRevenueChart(allGuests);
+  renderTransactionsList(filtered, from, to);
+  renderRevenueChart(allGuests, from, to);
 };
 
-function renderTransactionsList(guests) {
+function renderTransactionsList(guests, from, to) {
   const container = document.getElementById('financial-transactions');
   if (!container) return;
 
-  const sorted = [...guests].filter(g => g.paid > 0)
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    .slice(0, 30);
+  const sorted = [...guests].filter(g => parseFloat(g.paid) > 0)
+    .sort((a, b) => (b.updatedAt || b.checkoutActual || 0) - (a.updatedAt || a.checkoutActual || 0));
+
+  const periodLabels = {
+    day: 'اليوم', week: 'الأسبوع', month: 'الشهر', year: 'السنة', all: 'الكل', custom: 'المخصص'
+  };
+  const label = periodLabels[AppState.finPeriod] || '';
 
   if (!sorted.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">💰</div><p>لا توجد معاملات مالية</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">💰</div><p>لا توجد معاملات مالية في هذه الفترة</p></div>`;
     return;
   }
 
-  container.innerHTML = sorted.map(g => `
-    <div class="transaction-item">
-      <div>
-        <strong>${g.name || 'نزيل'}</strong> - الغرفة ${AppState.rooms[g.roomId]?.number || '-'}
-      </div>
-      <div class="transaction-date">${g.checkinDate || '-'}</div>
-      <div class="transaction-amount">${(g.paid||0).toLocaleString('ar-EG')} ج</div>
+  const roomMap = AppState.rooms || {};
+  container.innerHTML = `
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;padding:0 4px;">
+      📋 سجل المعاملات — <strong style="color:var(--neon-cyan)">${label}</strong> (${sorted.length} سجل)
     </div>
-  `).join('');
+    ${sorted.map(g => {
+      const roomNum = roomMap[g.roomId]?.number || g.roomNumber || '-';
+      const isArchived = !!g.checkoutActual;
+      return `
+      <div class="transaction-item">
+        <div>
+          <strong>${g.name || 'نزيل'}</strong>
+          <span style="font-size:11px;color:var(--text-muted);margin-right:6px">الغرفة ${roomNum}</span>
+          ${isArchived ? '<span style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:6px;color:#a0b0d0">✔ مغادر</span>' : '<span style="font-size:10px;background:rgba(68,255,136,0.12);padding:1px 6px;border-radius:6px;color:#2ecc71">● حالي</span>'}
+        </div>
+        <div class="transaction-date">${g.checkinDate || '-'} ← ${g.checkoutDate || '-'}</div>
+        <div style="text-align:left">
+          <div class="transaction-amount">${(g.paid||0).toLocaleString('ar-EG')} ج</div>
+          ${(g.remaining||0) > 0 ? `<div style="font-size:11px;color:#ff6b6b">متبقي: ${(g.remaining||0).toLocaleString('ar-EG')} ج</div>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+  `;
 }
 
-function renderRevenueChart(guests) {
+function renderRevenueChart(guests, from, to) {
   const canvas = document.getElementById('revenue-chart');
   if (!canvas) return;
 
-  // Last 7 days
+  // Build day-by-day data for the chart based on period
   const days = [];
   const amounts = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
-    days.push(d.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric' }));
-    const dayTotal = guests
-      .filter(g => g.checkinDate === dateStr)
-      .reduce((sum, g) => sum + (parseFloat(g.paid) || 0), 0);
-    amounts.push(dayTotal);
+
+  // Determine how many days to show
+  const fromDate = new Date(from || '2000-01-01');
+  const toDate = new Date(to || new Date().toISOString().split('T')[0]);
+  const diffDays = Math.round((toDate - fromDate) / (1000*60*60*24)) + 1;
+
+  // For large ranges, group by month or week
+  let groupBy = 'day';
+  let numBuckets = Math.min(diffDays, 30);
+  if (diffDays > 90) { groupBy = 'month'; numBuckets = Math.min(12, diffDays/30); }
+  else if (diffDays > 30) { groupBy = 'week'; numBuckets = Math.min(8, Math.ceil(diffDays/7)); }
+
+  if (groupBy === 'day') {
+    for (let i = numBuckets - 1; i >= 0; i--) {
+      const d = new Date(toDate);
+      d.setDate(toDate.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      days.push(d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' }));
+      const dayTotal = guests
+        .filter(g => g.checkinDate === dateStr)
+        .reduce((sum, g) => sum + (parseFloat(g.paid) || 0), 0);
+      amounts.push(dayTotal);
+    }
+  } else if (groupBy === 'week') {
+    for (let i = numBuckets - 1; i >= 0; i--) {
+      const weekEnd = new Date(toDate);
+      weekEnd.setDate(toDate.getDate() - i * 7);
+      const weekStart = new Date(weekEnd);
+      weekStart.setDate(weekEnd.getDate() - 6);
+      const ws = weekStart.toISOString().split('T')[0];
+      const we = weekEnd.toISOString().split('T')[0];
+      days.push(weekStart.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' }));
+      const weekTotal = guests
+        .filter(g => (g.checkinDate||'') >= ws && (g.checkinDate||'') <= we)
+        .reduce((sum, g) => sum + (parseFloat(g.paid) || 0), 0);
+      amounts.push(weekTotal);
+    }
+  } else {
+    for (let i = numBuckets - 1; i >= 0; i--) {
+      const d = new Date(toDate.getFullYear(), toDate.getMonth() - i, 1);
+      const monthStr = d.toISOString().split('T')[0].substring(0, 7);
+      days.push(d.toLocaleDateString('ar-EG', { month: 'short', year: '2-digit' }));
+      const mTotal = guests
+        .filter(g => (g.checkinDate||'').startsWith(monthStr))
+        .reduce((sum, g) => sum + (parseFloat(g.paid) || 0), 0);
+      amounts.push(mTotal);
+    }
   }
 
   const max = Math.max(...amounts, 1);
@@ -2111,3 +2353,292 @@ window.updatePermPreview = function() {
 window.renderRooms = renderRooms;
 window.updateStats = updateStats;
 window.logActivity = logActivity;
+
+// ============================================================
+// GUESTS LIST SECTION
+// ============================================================
+
+function getAllGuestsData() {
+  const currentGuests = Object.values(AppState.guests || {});
+  const history = Object.values(AppState.checkoutHistory || {});
+
+  // Mark source
+  const current = currentGuests.map(g => ({ ...g, _isCurrent: true }));
+  const archived = history.map(g => ({ ...g, _isCurrent: false }));
+
+  // Merge, deduplicate by (phone + checkinDate + roomId)
+  const seen = new Set();
+  const merged = [];
+  for (const g of [...current, ...archived]) {
+    const key = `${g.phone||''}|${g.checkinDate||''}|${g.roomId||''}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(g);
+    }
+  }
+  return merged;
+}
+
+function getDayName(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('ar-EG', { weekday: 'long' });
+  } catch { return '-'; }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+  } catch { return dateStr; }
+}
+
+window.clearGuestsFilter = function() {
+  const s = document.getElementById('guests-search');
+  const f = document.getElementById('guests-from');
+  const t = document.getElementById('guests-to');
+  if (s) s.value = '';
+  if (f) f.value = '';
+  if (t) t.value = '';
+  renderGuestsList();
+};
+
+window.renderGuestsList = function() {
+  const tbody = document.getElementById('guests-table-body');
+  const emptyEl = document.getElementById('guests-empty');
+  const statsBar = document.getElementById('guests-stats-bar');
+  if (!tbody) return;
+
+  const query = (document.getElementById('guests-search')?.value || '').trim().toLowerCase();
+  const fromVal = document.getElementById('guests-from')?.value || '';
+  const toVal = document.getElementById('guests-to')?.value || '';
+
+  let data = getAllGuestsData();
+
+  // Date filter
+  if (fromVal) data = data.filter(g => (g.checkinDate || '') >= fromVal);
+  if (toVal)   data = data.filter(g => (g.checkinDate || '') <= toVal);
+
+  // Smart search
+  if (query) {
+    data = data.filter(g => {
+      const roomNum = AppState.rooms[g.roomId]?.number || g.roomNumber || '';
+      return (
+        (g.name || '').toLowerCase().includes(query) ||
+        (g.profession || '').toLowerCase().includes(query) ||
+        (g.nationalId || '').toLowerCase().includes(query) ||
+        (g.phone || '').includes(query) ||
+        String(roomNum).includes(query)
+      );
+    });
+  }
+
+  // Sort newest first
+  data.sort((a, b) => {
+    const da = a.checkinDate || '';
+    const db = b.checkinDate || '';
+    return db > da ? 1 : db < da ? -1 : 0;
+  });
+
+  // Stats
+  const totalPaid = data.reduce((s, g) => s + (parseFloat(g.paid) || 0), 0);
+  const currentCount = data.filter(g => g._isCurrent).length;
+  const archivedCount = data.length - currentCount;
+
+  if (statsBar) {
+    statsBar.innerHTML = `
+      <div class="guests-stat-chip">👥 إجمالي النزلاء: <strong>${data.length}</strong></div>
+      <div class="guests-stat-chip">🟢 حاليون: <strong>${currentCount}</strong></div>
+      <div class="guests-stat-chip">✔ مغادرون: <strong>${archivedCount}</strong></div>
+      <div class="guests-stat-chip">💰 إجمالي المدفوع: <strong>${totalPaid.toLocaleString('ar-EG')} ج</strong></div>
+    `;
+  }
+
+  if (!data.length) {
+    tbody.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = '';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  tbody.innerHTML = data.map((g, i) => {
+    const roomNum = AppState.rooms[g.roomId]?.number || g.roomNumber || '-';
+    const isCurrent = g._isCurrent;
+    const statusBadge = isCurrent
+      ? `<span class="guest-status-badge guest-status-current">● حالي</span>`
+      : `<span class="guest-status-badge guest-status-out">✔ مغادر</span>`;
+
+    return `
+    <tr>
+      <td class="row-num">${i + 1}</td>
+      <td><strong style="color:var(--text-primary)">${g.name || '-'}</strong></td>
+      <td>${g.profession || '-'}</td>
+      <td style="font-size:12px;letter-spacing:0.5px">${g.nationalId || '-'}</td>
+      <td>${getDayName(g.checkinDate)}</td>
+      <td style="white-space:nowrap">${formatDate(g.checkinDate)}</td>
+      <td style="text-align:center;font-weight:700;color:var(--neon-cyan)">${roomNum}</td>
+      <td style="text-align:center">${g.days || '-'}</td>
+      <td class="paid-amount">${(g.paid || 0).toLocaleString('ar-EG')} ج</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+};
+
+// ============================================================
+// EXPORT GUESTS - EXCEL
+// ============================================================
+window.exportGuestsExcel = function() {
+  const query = (document.getElementById('guests-search')?.value || '').trim().toLowerCase();
+  const fromVal = document.getElementById('guests-from')?.value || '';
+  const toVal = document.getElementById('guests-to')?.value || '';
+
+  let data = getAllGuestsData();
+  if (fromVal) data = data.filter(g => (g.checkinDate || '') >= fromVal);
+  if (toVal)   data = data.filter(g => (g.checkinDate || '') <= toVal);
+  if (query) {
+    data = data.filter(g => {
+      const roomNum = AppState.rooms[g.roomId]?.number || g.roomNumber || '';
+      return (g.name||'').toLowerCase().includes(query) ||
+             (g.profession||'').toLowerCase().includes(query) ||
+             (g.nationalId||'').toLowerCase().includes(query) ||
+             (g.phone||'').includes(query) ||
+             String(roomNum).includes(query);
+    });
+  }
+  data.sort((a, b) => ((b.checkinDate||'') > (a.checkinDate||'') ? 1 : -1));
+
+  // Build CSV (Excel-compatible, UTF-8 BOM)
+  const headers = ['#','الاسم','المهنة','الرقم القومي','اليوم','التاريخ','رقم الغرفة','عدد الأيام','المبلغ المدفوع','الحالة'];
+  const rows = data.map((g, i) => {
+    const roomNum = AppState.rooms[g.roomId]?.number || g.roomNumber || '-';
+    return [
+      i + 1,
+      g.name || '-',
+      g.profession || '-',
+      g.nationalId || '-',
+      getDayName(g.checkinDate),
+      g.checkinDate || '-',
+      roomNum,
+      g.days || '-',
+      (g.paid || 0),
+      g._isCurrent ? 'حالي' : 'مغادر'
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
+
+  const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `نزلاء-دار-الضيافة-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ تم تصدير ملف Excel بنجاح', 'success');
+};
+
+// ============================================================
+// EXPORT GUESTS - PDF
+// ============================================================
+window.exportGuestsPDF = function() {
+  const query = (document.getElementById('guests-search')?.value || '').trim().toLowerCase();
+  const fromVal = document.getElementById('guests-from')?.value || '';
+  const toVal = document.getElementById('guests-to')?.value || '';
+
+  let data = getAllGuestsData();
+  if (fromVal) data = data.filter(g => (g.checkinDate || '') >= fromVal);
+  if (toVal)   data = data.filter(g => (g.checkinDate || '') <= toVal);
+  if (query) {
+    data = data.filter(g => {
+      const roomNum = AppState.rooms[g.roomId]?.number || g.roomNumber || '-';
+      return (g.name||'').toLowerCase().includes(query) ||
+             (g.profession||'').toLowerCase().includes(query) ||
+             (g.nationalId||'').toLowerCase().includes(query) ||
+             (g.phone||'').includes(query) ||
+             String(roomNum).includes(query);
+    });
+  }
+  data.sort((a, b) => ((b.checkinDate||'') > (a.checkinDate||'') ? 1 : -1));
+
+  const totalPaid = data.reduce((s, g) => s + (parseFloat(g.paid) || 0), 0);
+  const today = new Date().toLocaleDateString('ar-EG', { year:'numeric', month:'long', day:'numeric' });
+
+  const rows = data.map((g, i) => {
+    const roomNum = AppState.rooms[g.roomId]?.number || g.roomNumber || '-';
+    const status = g._isCurrent ? '<span style="color:#2ecc71">● حالي</span>' : '<span style="color:#a0b0d0">✔ مغادر</span>';
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td><strong>${g.name || '-'}</strong></td>
+        <td>${g.profession || '-'}</td>
+        <td style="font-size:11px">${g.nationalId || '-'}</td>
+        <td>${getDayName(g.checkinDate)}</td>
+        <td>${g.checkinDate || '-'}</td>
+        <td style="font-weight:700;color:#2563eb">${roomNum}</td>
+        <td style="text-align:center">${g.days || '-'}</td>
+        <td style="font-weight:700;color:#0891b2">${(g.paid||0).toLocaleString('ar-EG')} ج</td>
+        <td>${status}</td>
+      </tr>`;
+  }).join('');
+
+  const filterNote = fromVal || toVal
+    ? `<p style="color:#666;font-size:13px">الفترة: ${fromVal || 'البداية'} إلى ${toVal || 'اليوم'}</p>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>سجل النزلاء - دار الضيافة</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Cairo', Arial, sans-serif; direction: rtl; padding: 30px; color: #1a1f3a; background: #fff; }
+  .header { text-align: center; margin-bottom: 24px; border-bottom: 3px solid #2563eb; padding-bottom: 16px; }
+  .header h1 { font-size: 24px; color: #2563eb; font-weight: 900; }
+  .header p { color: #666; font-size: 14px; margin-top: 4px; }
+  .summary { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .chip { background: #f0f4ff; border: 1px solid #c7d7ff; border-radius: 8px; padding: 8px 16px; font-size: 13px; }
+  .chip strong { color: #2563eb; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: #2563eb; color: #fff; padding: 10px 8px; font-weight: 700; white-space: nowrap; }
+  td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+  tr:nth-child(even) { background: #f9fafb; }
+  tr:hover { background: #eff6ff; }
+  .footer { margin-top: 20px; text-align: center; color: #999; font-size: 12px; }
+  @media print { body { padding: 10px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏨 دار الضيافة — سجل النزلاء</h1>
+  <p>تاريخ الطباعة: ${today}</p>
+  ${filterNote}
+</div>
+<div class="summary">
+  <div class="chip">👥 إجمالي النزلاء: <strong>${data.length}</strong></div>
+  <div class="chip">🟢 حاليون: <strong>${data.filter(g=>g._isCurrent).length}</strong></div>
+  <div class="chip">✔ مغادرون: <strong>${data.filter(g=>!g._isCurrent).length}</strong></div>
+  <div class="chip">💰 إجمالي المدفوع: <strong>${totalPaid.toLocaleString('ar-EG')} ج</strong></div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>#</th><th>الاسم</th><th>المهنة</th><th>الرقم القومي</th>
+      <th>اليوم</th><th>التاريخ</th><th>الغرفة</th><th>الأيام</th><th>المدفوع</th><th>الحالة</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="footer">دار الضيافة بالمنصورة — نظام إدارة النزلاء</div>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 600);
+  showToast('✅ جاري فتح نافذة الطباعة للـ PDF', 'success');
+};
+

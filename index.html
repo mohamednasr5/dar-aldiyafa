@@ -121,6 +121,9 @@
       <a class="nav-item" onclick="showSection('financial')" id="nav-financial">
         <span class="nav-icon">💰</span><span>التقارير المالية</span>
       </a>
+      <a class="nav-item" onclick="showSection('guests-list')" id="nav-guests-list">
+        <span class="nav-icon">👤</span><span>النزلاء</span>
+      </a>
       <a class="nav-item" onclick="showSection('employees')" id="nav-employees">
         <span class="nav-icon">👥</span><span>الموظفون</span>
       </a>
@@ -294,39 +297,130 @@
     <section id="section-financial" class="section">
       <div class="section-header">
         <h2>💰 التقارير المالية</h2>
-        <div class="date-filter">
-          <input type="date" id="fin-from" onchange="updateFinancials()">
-          <span>إلى</span>
-          <input type="date" id="fin-to" onchange="updateFinancials()">
-          <button class="btn-primary" onclick="exportFinancialReport()">📊 تصدير</button>
-        </div>
+        <button class="btn-primary" onclick="exportFinancialReport()">📊 تصدير</button>
       </div>
+
+      <!-- Period Quick Buttons -->
+      <div class="fin-period-bar">
+        <button class="fin-period-btn active" data-period="day" onclick="setFinPeriod('day', this)">📅 اليوم</button>
+        <button class="fin-period-btn" data-period="week" onclick="setFinPeriod('week', this)">📆 الأسبوع</button>
+        <button class="fin-period-btn" data-period="month" onclick="setFinPeriod('month', this)">🗓️ الشهر</button>
+        <button class="fin-period-btn" data-period="year" onclick="setFinPeriod('year', this)">📊 السنة</button>
+        <button class="fin-period-btn" data-period="all" onclick="setFinPeriod('all', this)">🗂️ الكل</button>
+      </div>
+
+      <!-- Custom date range -->
+      <div class="fin-custom-range" id="fin-custom-range" style="display:none;">
+        <input type="date" id="fin-from" onchange="setFinPeriod('custom', null)">
+        <span>إلى</span>
+        <input type="date" id="fin-to" onchange="setFinPeriod('custom', null)">
+      </div>
+      <button class="fin-custom-toggle" onclick="toggleFinCustomRange()">📁 تخصيص نطاق تاريخ</button>
+
       <div class="financial-stats">
         <div class="fin-card">
-          <div class="fin-icon">📅</div>
-          <div class="fin-amount" id="fin-daily">0 ج</div>
-          <div class="fin-label">إيرادات اليوم</div>
-        </div>
-        <div class="fin-card">
-          <div class="fin-icon">📆</div>
-          <div class="fin-amount" id="fin-monthly">0 ج</div>
-          <div class="fin-label">إيرادات الشهر</div>
-        </div>
-        <div class="fin-card">
-          <div class="fin-icon">🗓️</div>
-          <div class="fin-amount" id="fin-yearly">0 ج</div>
-          <div class="fin-label">إيرادات السنة</div>
+          <div class="fin-icon">💵</div>
+          <div class="fin-amount" id="fin-total-paid">0 ج</div>
+          <div class="fin-label">إجمالي المحصّل</div>
         </div>
         <div class="fin-card">
           <div class="fin-icon">💳</div>
           <div class="fin-amount" id="fin-remaining">0 ج</div>
           <div class="fin-label">مبالغ متبقية</div>
         </div>
+        <div class="fin-card">
+          <div class="fin-icon">📋</div>
+          <div class="fin-amount" id="fin-count">0</div>
+          <div class="fin-label">عدد النزلاء</div>
+        </div>
+        <div class="fin-card">
+          <div class="fin-icon">💰</div>
+          <div class="fin-amount" id="fin-total-revenue">0 ج</div>
+          <div class="fin-label">إجمالي الإيرادات</div>
+        </div>
       </div>
+
+      <!-- Summary cards still shown always -->
+      <div class="financial-stats fin-always-stats">
+        <div class="fin-card fin-card-sm">
+          <div class="fin-icon" style="font-size:18px">📅</div>
+          <div class="fin-amount fin-amount-sm" id="fin-daily">0 ج</div>
+          <div class="fin-label">اليوم</div>
+        </div>
+        <div class="fin-card fin-card-sm">
+          <div class="fin-icon" style="font-size:18px">📆</div>
+          <div class="fin-amount fin-amount-sm" id="fin-weekly">0 ج</div>
+          <div class="fin-label">الأسبوع</div>
+        </div>
+        <div class="fin-card fin-card-sm">
+          <div class="fin-icon" style="font-size:18px">🗓️</div>
+          <div class="fin-amount fin-amount-sm" id="fin-monthly">0 ج</div>
+          <div class="fin-label">الشهر</div>
+        </div>
+        <div class="fin-card fin-card-sm">
+          <div class="fin-icon" style="font-size:18px">🗂️</div>
+          <div class="fin-amount fin-amount-sm" id="fin-yearly">0 ج</div>
+          <div class="fin-label">السنة</div>
+        </div>
+      </div>
+
       <div class="chart-container">
         <canvas id="revenue-chart"></canvas>
       </div>
       <div id="financial-transactions" class="transactions-list"></div>
+    </section>
+
+    <!-- Guests List Section -->
+    <section id="section-guests-list" class="section">
+      <div class="section-header">
+        <h2>👤 النزلاء</h2>
+        <div class="guests-export-btns">
+          <button class="btn-secondary" onclick="exportGuestsExcel()">📗 Excel</button>
+          <button class="btn-secondary" onclick="exportGuestsPDF()">📄 PDF</button>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="guests-filter-bar">
+        <div class="guests-search-wrap">
+          <input type="text" id="guests-search" placeholder="🔍 بحث بالاسم، المهنة، الرقم القومي، الغرفة..." oninput="renderGuestsList()">
+        </div>
+        <div class="guests-date-range">
+          <label>من</label>
+          <input type="date" id="guests-from" onchange="renderGuestsList()">
+          <label>إلى</label>
+          <input type="date" id="guests-to" onchange="renderGuestsList()">
+          <button class="btn-secondary btn-sm" onclick="clearGuestsFilter()">↺ إعادة</button>
+        </div>
+      </div>
+
+      <!-- Stats bar -->
+      <div class="guests-stats-bar" id="guests-stats-bar"></div>
+
+      <!-- Table -->
+      <div class="guests-table-wrap">
+        <table class="guests-table" id="guests-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>الاسم</th>
+              <th>المهنة</th>
+              <th>الرقم القومي</th>
+              <th>اليوم</th>
+              <th>التاريخ</th>
+              <th>رقم الغرفة</th>
+              <th>عدد الأيام</th>
+              <th>المبلغ المدفوع</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody id="guests-table-body"></tbody>
+        </table>
+        <div id="guests-empty" class="empty-state" style="display:none">
+          <div class="empty-icon">👤</div>
+          <p>لا توجد بيانات نزلاء</p>
+        </div>
+      </div>
     </section>
 
     <!-- Employees Section -->
@@ -362,6 +456,9 @@
     </a>
     <a class="bottom-nav-item" onclick="showSection('financial')" id="bottom-nav-financial">
       <span>💰</span><span>المالية</span>
+    </a>
+    <a class="bottom-nav-item" onclick="showSection('guests-list')" id="bottom-nav-guests-list">
+      <span>👤</span><span>النزلاء</span>
     </a>
     <a class="bottom-nav-item" onclick="showSection('activity')">
       <span>📋</span><span>النشاط</span>
