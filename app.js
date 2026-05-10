@@ -1383,23 +1383,42 @@ window.doSearch = function(query) {
 
   const results = [];
 
-  // Search rooms
+  // ── 1. البحث في الغرف الحالية ──
   Object.entries(AppState.rooms).forEach(([id, room]) => {
     const guest = AppState.guests[id];
     const match =
       String(room.number).toLowerCase().includes(query) ||
       (guest?.name && guest.name.toLowerCase().includes(query)) ||
       (guest?.phone && guest.phone.includes(query));
-
     if (match) results.push({ type: 'room', id, room, guest });
   });
 
-  if (!results.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>لا توجد نتائج للبحث عن: "${query}"</p></div>`;
-    return;
-  }
+  // ── 2. البحث في النزلاء السابقين (checkoutHistory) ──
+  const pastResults = [];
+  const seenPhones = new Set(); // لتجميع نفس النزيل في نتيجة واحدة
 
-  container.innerHTML = results.map(r => {
+  Object.values(AppState.checkoutHistory || {}).forEach(record => {
+    const nameMatch = record.name && record.name.toLowerCase().includes(query);
+    const phoneMatch = record.phone && record.phone.includes(query);
+    if (!nameMatch && !phoneMatch) return;
+
+    // نجمّع كل زيارات نفس الشخص تحت رقم هاتفه
+    const key = record.phone ? record.phone.replace(/\D/g, '') : `name_${record.name}`;
+    if (!seenPhones.has(key)) {
+      seenPhones.add(key);
+      pastResults.push({ key, records: [] });
+    }
+    const entry = pastResults.find(p => p.key === key);
+    if (entry) entry.records.push(record);
+  });
+
+  // ترتيب زيارات كل نزيل من الأحدث للأقدم
+  pastResults.forEach(p => {
+    p.records.sort((a, b) => (b.checkoutActual || 0) - (a.checkoutActual || 0));
+  });
+
+  // ── عرض نتائج الغرف الحالية ──
+  const currentHtml = results.map(r => {
     const room = r.room;
     const guest = r.guest;
     return `
@@ -1424,6 +1443,60 @@ window.doSearch = function(query) {
       ${guest?.phone ? `<button class="btn-secondary btn-sm" style="margin-top:8px" onclick="loadGuestHistory('${guest.phone}')">📋 سجل النزيل</button>` : ''}
     </div>`;
   }).join('');
+
+  // ── عرض نتائج النزلاء السابقين ──
+  const pastHtml = pastResults.map(p => {
+    const latest = p.records[0]; // أحدث زيارة
+    const totalVisits = p.records.length;
+    const totalPaid = p.records.reduce((s, r) => s + (r.paid || 0), 0);
+    const phone = latest.phone || '';
+
+    const visitsHtml = p.records.map(rec => `
+      <div class="history-item">
+        <span>🏠 غرفة ${rec.roomNumber || '-'}</span>
+        <span>📅 ${rec.checkinDate || '-'} ← ${rec.checkoutActualDate || rec.checkoutDate || '-'}</span>
+        <span class="transaction-amount">${(rec.paid||0).toLocaleString('ar-EG')} ج</span>
+      </div>
+    `).join('');
+
+    return `
+    <div class="search-result-card" style="border-right: 4px solid var(--text-muted); opacity: 0.92;">
+      <div class="search-result-header">
+        <div>
+          <strong>👤 ${latest.name || '-'}</strong>
+          <span class="badge badge-occupied" style="margin-right:8px; background: #6c757d;">نزيل سابق</span>
+        </div>
+        ${phone ? `<button class="btn-primary btn-sm" onclick="reuseGuestInfo('${phone}')">🔄 حجز جديد</button>` : ''}
+      </div>
+      <div class="guest-info-preview">
+        ${phone ? `<div class="res-info">📞 ${phone}</div>` : ''}
+        <div class="res-info">🔢 عدد الزيارات: <strong>${totalVisits}</strong> | إجمالي المدفوع: <strong>${totalPaid.toLocaleString('ar-EG')} ج</strong></div>
+        <div class="res-info">📅 آخر زيارة: ${latest.checkinDate || '-'} ← ${latest.checkoutActualDate || latest.checkoutDate || '-'} | الغرفة ${latest.roomNumber || '-'}</div>
+      </div>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer; color:var(--neon-blue); font-size:0.85rem; padding: 4px 0;">📋 عرض كل الزيارات (${totalVisits})</summary>
+        <div class="guest-history" style="margin-top:8px">${visitsHtml}</div>
+      </details>
+    </div>`;
+  }).join('');
+
+  // ── دمج النتائج مع فاصل إذا وجد نوعان ──
+  if (!results.length && !pastResults.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>لا توجد نتائج للبحث عن: "${query}"</p></div>`;
+    return;
+  }
+
+  let html = '';
+  if (results.length) {
+    html += `<div class="search-section-label" style="font-weight:700; color:var(--neon-blue); margin-bottom:8px; font-size:0.9rem;">🏨 النزلاء الحاليون (${results.length})</div>`;
+    html += currentHtml;
+  }
+  if (pastResults.length) {
+    if (results.length) html += `<div style="border-top: 1px solid var(--border-color); margin: 16px 0;"></div>`;
+    html += `<div class="search-section-label" style="font-weight:700; color:var(--text-muted); margin-bottom:8px; font-size:0.9rem;">🕐 النزلاء السابقون (${pastResults.length})</div>`;
+    html += pastHtml;
+  }
+  container.innerHTML = html;
 };
 
 window.loadGuestHistory = async function(phone) {
