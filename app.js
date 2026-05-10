@@ -312,7 +312,10 @@ function loginSuccess(user) {
   // Apply section permissions
   enforcePermissions(user);
 
-  document.getElementById('login-screen').classList.add('hidden');
+  const loginScreen = document.getElementById('login-screen');
+  loginScreen.classList.add('hidden');
+  // بعد انتهاء الـ animation نخفيها نهائياً (مهم للموبايل)
+  setTimeout(() => { loginScreen.style.display = 'none'; }, 520);
   document.getElementById('main-app').classList.remove('hidden');
 
   logActivity('login', `تسجيل دخول: ${user.name}`, '🔑');
@@ -380,8 +383,10 @@ window.doLogout = function() {
   logActivity('logout', `تسجيل خروج: ${AppState.currentUser?.name}`, '🚪');
   AppState.currentUser = null;
   localStorage.removeItem('hotelSession');
-  localStorage.removeItem('currentSection'); // مسح القسم المحفوظ عند تسجيل الخروج
-  document.getElementById('login-screen').classList.remove('hidden');
+  localStorage.removeItem('currentSection');
+  const loginScreen = document.getElementById('login-screen');
+  loginScreen.style.display = ''; // إعادة الـ display لطبيعته
+  loginScreen.classList.remove('hidden');
   document.getElementById('main-app').classList.add('hidden');
 };
 
