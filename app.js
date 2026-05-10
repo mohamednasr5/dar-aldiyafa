@@ -609,14 +609,20 @@ window.quickCheckoutFromNotif = async function(roomId, notifId) {
 
   if (!confirm(`تأكيد تسجيل خروج ${guest.name || 'النزيل'} من الغرفة ${room.number}؟`)) return;
 
-  // Archive guest
+  // Archive guest permanently to checkoutHistory (لا يُحذف أبداً)
   if (guest) {
-    await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
+    await dbPush('checkoutHistory', {
+      ...guest,
+      checkoutActual: Date.now(),
+      checkoutActualDate: new Date().toISOString().split('T')[0],
+      roomNumber: room?.number,
+      roomId
+    });
   }
 
-  // Free room immediately → available
-  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: true });
+  // حذف بيانات المقيم الحالية وتحرير الغرفة فوراً
   await dbRemove(`guests/${roomId}`);
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: true });
 
   logActivity('checkout', `خروج سريع من الغرفة ${room.number}: ${guest.name}`, '🚪');
   showToast(`✅ تم تسجيل خروج ${guest.name || ''} والغرفة ${room.number} متاحة الآن`, 'success');
@@ -710,7 +716,7 @@ function renderRooms() {
       calcRemainingDays(guest.checkoutDate) : '';
 
     const keyIcon = (room.status === 'available' || !room.status)
-      ? `<span class="key-icon" title="🗝️ المفتاح مع الدار">🗝️ مع الدار</span>`
+      ? `<span class="key-icon" title="المفتاح مع الدار">🗝️</span>`
       : (room.keyWithReception ? `<span class="key-icon" title="المفتاح مع الاستقبال">🗝️</span>` : '');
 
     const vipClass = room.type === 'vip' ? 'vip' : '';
@@ -838,7 +844,7 @@ function renderRoomsTable() {
     const guest = AppState.guests[id];
     const [badgeClass, label] = statusMap[room.status] || ['badge-available','شاغرة'];
     const tableKeyIcon = (room.status === 'available' || !room.status)
-      ? `<span class="key-icon" style="font-size:14px;" title="المفتاح مع الدار">🗝️ مع الدار</span>` : '';
+      ? `<span class="key-icon" style="font-size:14px;" title="المفتاح مع الدار">🗝️</span>` : '';
 
     return `
     <tr>
@@ -983,9 +989,17 @@ window.saveGuestData = async function() {
     }
   }
 
-  // Room status & key
-  const newStatus = document.getElementById('modal-status').value;
+  // Room status & key - تتحول الغرفة تلقائياً إلى مشغولة عند إدخال بيانات مقيم
+  let newStatus = document.getElementById('modal-status').value;
   const keyWithReception = document.getElementById('modal-key-reception').checked;
+
+  // إذا كان هناك اسم مقيم، تتحول الغرفة فوراً إلى مشغولة
+  if (guestData.name) {
+    newStatus = 'occupied';
+    if (document.getElementById('modal-status')) {
+      document.getElementById('modal-status').value = 'occupied';
+    }
+  }
 
   await dbSet(`guests/${roomId}`, guestData);
   await dbUpdate(`rooms/${roomId}`, { status: newStatus, keyWithReception });
@@ -1009,7 +1023,7 @@ window.checkoutGuest = async function() {
   const room = AppState.rooms[roomId];
   const guest = AppState.guests[roomId];
 
-  // Save checkout to history
+  // Save checkout to history (permanent record)
   if (guest?.phone) {
     const histKey = 'guest_history_' + guest.phone.replace(/\D/g, '');
     const histSnap = await get(ref(db, `guestHistory/${histKey}`)).catch(() => null);
@@ -1026,13 +1040,21 @@ window.checkoutGuest = async function() {
     }
   }
 
-  // Archive guest
+  // Archive guest permanently to checkoutHistory (لا يُحذف أبداً)
   if (guest) {
-    await dbPush('checkoutHistory', { ...guest, checkoutActual: Date.now(), roomNumber: room?.number });
+    await dbPush('checkoutHistory', {
+      ...guest,
+      checkoutActual: Date.now(),
+      checkoutActualDate: new Date().toISOString().split('T')[0],
+      roomNumber: room?.number,
+      roomId
+    });
   }
 
-  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: true });
+  // حذف بيانات المقيم الحالية من الغرفة فقط وتغيير الحالة إلى شاغرة
+  // البيانات محفوظة في checkoutHistory ولا تُحذف أبداً
   await dbRemove(`guests/${roomId}`);
+  await dbUpdate(`rooms/${roomId}`, { status: 'available', keyWithReception: true });
 
   logActivity('checkout', `خروج من الغرفة ${room?.number}: ${guest?.name}`, '🚪');
   showToast(`✅ تم تسجيل خروج ${guest?.name || ''} — الغرفة متاحة الآن`, 'success');
@@ -1106,15 +1128,10 @@ window.saveRoom = async function() {
 };
 
 window.deleteRoom = async function(roomId) {
+  // الغرف لا تُحذف أبداً من النظام - تبقى دائماً في الرئيسية
   const room = AppState.rooms[roomId];
   if (!room) return;
-  if (room.status === 'occupied') { showToast('لا يمكن حذف غرفة مشغولة', 'error'); return; }
-  if (!confirm(`هل تريد حذف الغرفة ${room.number}؟`)) return;
-
-  await dbRemove(`rooms/${roomId}`);
-  await dbRemove(`guests/${roomId}`);
-  logActivity('room_delete', `حذف الغرفة ${room.number}`, '🗑️');
-  showToast('تم حذف الغرفة', 'info');
+  showToast('⚠️ الغرف لا تُحذف من النظام - تبقى دائماً في السجلات', 'info');
 };
 
 // ============================================================
@@ -1336,7 +1353,8 @@ window.updateFinancials = function() {
 
   let daily = 0, monthly = 0, yearly = 0, totalRemaining = 0;
 
-  const allGuests = [...guests];
+  // دمج النزلاء الحاليين مع سجل المغادرين (لا تُحذف الإحصائيات أبداً)
+  const allGuests = [...guests, ...history];
 
   allGuests.forEach(g => {
     const d = g.checkinDate || '';
@@ -1346,7 +1364,10 @@ window.updateFinancials = function() {
     if (d === today) daily += paid;
     if (d.startsWith(thisMonth)) monthly += paid;
     if (d.startsWith(thisYear)) yearly += paid;
-    totalRemaining += remaining;
+    // المتبقي فقط للنزلاء الحاليين
+    if (guests.find(cg => cg.phone === g.phone && cg.checkinDate === g.checkinDate)) {
+      totalRemaining += remaining;
+    }
   });
 
   setText('fin-daily', daily.toLocaleString('ar-EG') + ' ج');
