@@ -152,7 +152,7 @@ body {
   transition: opacity 0.5s, visibility 0.5s;
 }
 
-.login-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.login-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; display: none !important; }
 
 .login-container {
   position: relative;

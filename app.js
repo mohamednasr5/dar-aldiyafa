@@ -314,8 +314,6 @@ function loginSuccess(user) {
 
   const loginScreen = document.getElementById('login-screen');
   loginScreen.classList.add('hidden');
-  // بعد انتهاء الـ animation نخفيها نهائياً (مهم للموبايل)
-  setTimeout(() => { loginScreen.style.display = 'none'; }, 520);
   document.getElementById('main-app').classList.remove('hidden');
 
   logActivity('login', `تسجيل دخول: ${user.name}`, '🔑');
@@ -385,7 +383,6 @@ window.doLogout = function() {
   localStorage.removeItem('hotelSession');
   localStorage.removeItem('currentSection');
   const loginScreen = document.getElementById('login-screen');
-  loginScreen.style.display = ''; // إعادة الـ display لطبيعته
   loginScreen.classList.remove('hidden');
   document.getElementById('main-app').classList.add('hidden');
 };
@@ -1375,11 +1372,34 @@ window.cancelReservation = async function(resId) {
 // ============================================================
 // SEARCH
 // ============================================================
+// debounce timer للبحث
+let _searchTimer = null;
+
 window.doSearch = function(query) {
+  // debounce: انتظر 250ms بعد آخر حرف
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => _execSearch(query), 250);
+};
+
+async function _execSearch(query) {
   query = (query || '').trim().toLowerCase();
   const container = document.getElementById('search-results');
   if (!container) return;
+
   if (!query) { container.innerHTML = ''; return; }
+
+  // إظهار loading أثناء الجلب
+  container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>جاري البحث...</p></div>`;
+
+  // إذا لم تكن checkoutHistory محملة بعد، اجلبها من Firebase الآن
+  if (!AppState.checkoutHistory || Object.keys(AppState.checkoutHistory).length === 0) {
+    try {
+      const snap = await get(ref(db, 'checkoutHistory'));
+      AppState.checkoutHistory = snap.exists() ? snap.val() : {};
+    } catch(e) {
+      AppState.checkoutHistory = {};
+    }
+  }
 
   const results = [];
 
@@ -1394,41 +1414,36 @@ window.doSearch = function(query) {
   });
 
   // ── 2. البحث في النزلاء السابقين (checkoutHistory) ──
-  const pastResults = [];
-  const seenPhones = new Set(); // لتجميع نفس النزيل في نتيجة واحدة
+  const pastMap = {}; // key → { records[] }
 
   Object.values(AppState.checkoutHistory || {}).forEach(record => {
     const nameMatch = record.name && record.name.toLowerCase().includes(query);
     const phoneMatch = record.phone && record.phone.includes(query);
     if (!nameMatch && !phoneMatch) return;
 
-    // نجمّع كل زيارات نفس الشخص تحت رقم هاتفه
-    const key = record.phone ? record.phone.replace(/\D/g, '') : `name_${record.name}`;
-    if (!seenPhones.has(key)) {
-      seenPhones.add(key);
-      pastResults.push({ key, records: [] });
-    }
-    const entry = pastResults.find(p => p.key === key);
-    if (entry) entry.records.push(record);
+    const key = record.phone ? record.phone.replace(/\D/g, '') : `name_${(record.name||'').toLowerCase()}`;
+    if (!pastMap[key]) pastMap[key] = { records: [] };
+    pastMap[key].records.push(record);
   });
 
-  // ترتيب زيارات كل نزيل من الأحدث للأقدم
-  pastResults.forEach(p => {
-    p.records.sort((a, b) => (b.checkoutActual || 0) - (a.checkoutActual || 0));
-  });
+  const pastResults = Object.values(pastMap);
+  pastResults.forEach(p => p.records.sort((a, b) => (b.checkoutActual || 0) - (a.checkoutActual || 0)));
 
-  // ── عرض نتائج الغرف الحالية ──
+  // ── لا نتائج ──
+  if (!results.length && !pastResults.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>لا توجد نتائج للبحث عن: "${query}"</p></div>`;
+    return;
+  }
+
+  // ── HTML النزلاء الحاليين ──
   const currentHtml = results.map(r => {
-    const room = r.room;
-    const guest = r.guest;
+    const room = r.room, guest = r.guest;
     return `
     <div class="search-result-card">
       <div class="search-result-header">
         <div>
           <strong>الغرفة ${room.number}</strong> ${room.type === 'vip' ? '👑' : ''}
-          <span class="badge badge-${room.status || 'available'}" style="margin-right:8px">
-            ${getStatusLabel(room.status)}
-          </span>
+          <span class="badge badge-${room.status || 'available'}" style="margin-right:8px">${getStatusLabel(room.status)}</span>
         </div>
         <button class="btn-primary btn-sm" onclick="openRoomModal('${r.id}')">فتح الغرفة</button>
       </div>
@@ -1444,60 +1459,55 @@ window.doSearch = function(query) {
     </div>`;
   }).join('');
 
-  // ── عرض نتائج النزلاء السابقين ──
+  // ── HTML النزلاء السابقين ──
   const pastHtml = pastResults.map(p => {
-    const latest = p.records[0]; // أحدث زيارة
+    const latest = p.records[0];
     const totalVisits = p.records.length;
-    const totalPaid = p.records.reduce((s, r) => s + (r.paid || 0), 0);
+    const totalPaid = p.records.reduce((s, r) => s + (parseFloat(r.paid) || 0), 0);
     const phone = latest.phone || '';
 
     const visitsHtml = p.records.map(rec => `
       <div class="history-item">
         <span>🏠 غرفة ${rec.roomNumber || '-'}</span>
         <span>📅 ${rec.checkinDate || '-'} ← ${rec.checkoutActualDate || rec.checkoutDate || '-'}</span>
-        <span class="transaction-amount">${(rec.paid||0).toLocaleString('ar-EG')} ج</span>
-      </div>
-    `).join('');
+        <span class="transaction-amount">${(parseFloat(rec.paid)||0).toLocaleString('ar-EG')} ج</span>
+      </div>`).join('');
 
     return `
-    <div class="search-result-card" style="border-right: 4px solid var(--text-muted); opacity: 0.92;">
+    <div class="search-result-card" style="border-right: 4px solid var(--text-muted);">
       <div class="search-result-header">
         <div>
           <strong>👤 ${latest.name || '-'}</strong>
-          <span class="badge badge-occupied" style="margin-right:8px; background: #6c757d;">نزيل سابق</span>
+          <span class="badge" style="margin-right:8px; background:#6c757d; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.75rem;">نزيل سابق</span>
         </div>
         ${phone ? `<button class="btn-primary btn-sm" onclick="reuseGuestInfo('${phone}')">🔄 حجز جديد</button>` : ''}
       </div>
       <div class="guest-info-preview">
         ${phone ? `<div class="res-info">📞 ${phone}</div>` : ''}
-        <div class="res-info">🔢 عدد الزيارات: <strong>${totalVisits}</strong> | إجمالي المدفوع: <strong>${totalPaid.toLocaleString('ar-EG')} ج</strong></div>
+        <div class="res-info">🔢 عدد الزيارات: <strong>${totalVisits}</strong> &nbsp;|&nbsp; إجمالي المدفوع: <strong>${totalPaid.toLocaleString('ar-EG')} ج</strong></div>
         <div class="res-info">📅 آخر زيارة: ${latest.checkinDate || '-'} ← ${latest.checkoutActualDate || latest.checkoutDate || '-'} | الغرفة ${latest.roomNumber || '-'}</div>
       </div>
+      ${totalVisits > 1 ? `
       <details style="margin-top:10px">
-        <summary style="cursor:pointer; color:var(--neon-blue); font-size:0.85rem; padding: 4px 0;">📋 عرض كل الزيارات (${totalVisits})</summary>
+        <summary style="cursor:pointer; color:var(--neon-blue); font-size:0.85rem; padding:4px 0;">📋 عرض كل الزيارات (${totalVisits})</summary>
         <div class="guest-history" style="margin-top:8px">${visitsHtml}</div>
-      </details>
+      </details>` : `<div class="guest-history" style="margin-top:8px">${visitsHtml}</div>`}
     </div>`;
   }).join('');
 
-  // ── دمج النتائج مع فاصل إذا وجد نوعان ──
-  if (!results.length && !pastResults.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>لا توجد نتائج للبحث عن: "${query}"</p></div>`;
-    return;
-  }
-
+  // ── دمج النتائج ──
   let html = '';
   if (results.length) {
-    html += `<div class="search-section-label" style="font-weight:700; color:var(--neon-blue); margin-bottom:8px; font-size:0.9rem;">🏨 النزلاء الحاليون (${results.length})</div>`;
+    html += `<div style="font-weight:700; color:var(--neon-blue); margin-bottom:8px; font-size:0.9rem;">🏨 النزلاء الحاليون (${results.length})</div>`;
     html += currentHtml;
   }
   if (pastResults.length) {
-    if (results.length) html += `<div style="border-top: 1px solid var(--border-color); margin: 16px 0;"></div>`;
-    html += `<div class="search-section-label" style="font-weight:700; color:var(--text-muted); margin-bottom:8px; font-size:0.9rem;">🕐 النزلاء السابقون (${pastResults.length})</div>`;
+    if (results.length) html += `<div style="border-top:1px solid var(--border-color); margin:16px 0;"></div>`;
+    html += `<div style="font-weight:700; color:var(--text-muted); margin-bottom:8px; font-size:0.9rem;">🕐 النزلاء السابقون (${pastResults.length})</div>`;
     html += pastHtml;
   }
   container.innerHTML = html;
-};
+}
 
 window.loadGuestHistory = async function(phone) {
   const histKey = 'guest_history_' + phone.replace(/\D/g, '');
