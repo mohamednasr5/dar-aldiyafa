@@ -2661,4 +2661,8 @@ window.exportGuestsPDF = function() {
   w.document.close();
   setTimeout(() => w.print(), 600);
   showToast('✅ جاري فتح نافذة الطباعة للـ PDF', 'success');
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> b3d9f968d5a14e89f7bf26d4c5911d3e14e2de86
