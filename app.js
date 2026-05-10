@@ -317,6 +317,13 @@ function loginSuccess(user) {
   updateFinancials();
   requestNotificationPermission();
   setTimeout(startCheckoutNotifications, 3000);
+
+  // استعادة القسم الأخير عند تحديث الصفحة
+  const savedSection = localStorage.getItem('currentSection');
+  if (savedSection) {
+    // تأخير بسيط لضمان تحميل البيانات أولاً
+    setTimeout(() => showSection(savedSection), 300);
+  }
 }
 
 function enforcePermissions(user) {
@@ -365,6 +372,7 @@ window.doLogout = function() {
   logActivity('logout', `تسجيل خروج: ${AppState.currentUser?.name}`, '🚪');
   AppState.currentUser = null;
   localStorage.removeItem('hotelSession');
+  localStorage.removeItem('currentSection'); // مسح القسم المحفوظ عند تسجيل الخروج
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('main-app').classList.add('hidden');
 };
@@ -413,6 +421,16 @@ function initDataListeners() {
       renderActivityLog();
     }
   });
+
+  // Checkout History (السجل المالي الدائم - لا يُحذف أبداً)
+  onValue(ref(db, 'checkoutHistory'), snap => {
+    AppState.checkoutHistory = snap.exists() ? snap.val() : {};
+    // إذا كان القسم المالي مفتوحاً، حدّثه تلقائياً
+    const finSection = document.getElementById('section-financial');
+    if (finSection && finSection.classList.contains('active')) {
+      updateFinancials();
+    }
+  });
 }
 
 // ============================================================
@@ -440,6 +458,9 @@ window.showSection = function(name) {
 
   const sec = document.getElementById(`section-${name}`);
   if (sec) sec.classList.add('active');
+
+  // حفظ القسم الحالي لاستعادته عند تحديث الصفحة
+  localStorage.setItem('currentSection', name);
 
   if (name === 'financial') updateFinancials();
   if (name === 'guests-list') renderGuestsList();
@@ -2641,4 +2662,3 @@ window.exportGuestsPDF = function() {
   setTimeout(() => w.print(), 600);
   showToast('✅ جاري فتح نافذة الطباعة للـ PDF', 'success');
 };
-
