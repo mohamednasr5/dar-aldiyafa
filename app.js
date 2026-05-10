@@ -91,6 +91,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const user = JSON.parse(session);
     AppState.currentUser = user;
     loginSuccess(user);
+  } else {
+    // لا توجد جلسة - امسح القسم المحفوظ تجنباً لأي تعارض
+    localStorage.removeItem('currentSection');
   }
 
   // Process any queued offline operations
@@ -320,9 +323,14 @@ function loginSuccess(user) {
 
   // استعادة القسم الأخير عند تحديث الصفحة
   const savedSection = localStorage.getItem('currentSection');
-  if (savedSection) {
+  const validSections = ['dashboard', 'rooms', 'reservations', 'search', 'financial', 'employees', 'activity', 'guests-list'];
+  if (savedSection && validSections.includes(savedSection)) {
     // تأخير بسيط لضمان تحميل البيانات أولاً
     setTimeout(() => showSection(savedSection), 300);
+  } else {
+    // fallback: تأكد من ظهور الداشبورد
+    const dash = document.getElementById('section-dashboard');
+    if (dash) dash.classList.add('active');
   }
 }
 
@@ -2661,8 +2669,5 @@ window.exportGuestsPDF = function() {
   w.document.close();
   setTimeout(() => w.print(), 600);
   showToast('✅ جاري فتح نافذة الطباعة للـ PDF', 'success');
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> b3d9f968d5a14e89f7bf26d4c5911d3e14e2de86
+
