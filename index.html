@@ -743,6 +743,7 @@
           <span class="perm-preview-item" data-perm="financial">💰 المالية</span>
           <span class="perm-preview-item" data-perm="employees">👥 الموظفون</span>
           <span class="perm-preview-item active" data-perm="activity">📋 النشاط</span>
+          <span class="perm-preview-item active" data-perm="guests-list">👤 النزلاء</span>
         </div>
       </div>
 
@@ -842,6 +843,20 @@
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="perm-activity" checked onchange="updatePermPreview()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="perm-toggle-row">
+          <div class="perm-toggle-info">
+            <span class="perm-icon">👥</span>
+            <div>
+              <div class="perm-name">قائمة النزلاء</div>
+              <div class="perm-desc">عرض سجل جميع النزلاء الحاليين والسابقين</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="perm-guests-list" checked onchange="updatePermPreview()">
             <span class="toggle-slider"></span>
           </label>
         </div>

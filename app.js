@@ -350,7 +350,7 @@ function enforcePermissions(user) {
   AppState.canViewFinancial    = isPrivileged || !!p.financial;
   AppState.canViewEmployees    = isPrivileged || !!p.employees;
   AppState.canViewActivity     = isPrivileged || p.activity     !== false;
-  AppState.canViewGuests       = isPrivileged || p.rooms        !== false;
+  AppState.canViewGuests       = isPrivileged || (p.guests !== false && p['guests-list'] !== false);
 
   // Show/hide nav items
   function setNav(id, show) {
@@ -1898,6 +1898,7 @@ window.showAddEmployeeModal = function() {
   setPermToggle('perm-financial', false);
   setPermToggle('perm-employees', false);
   setPermToggle('perm-activity', true);
+  setPermToggle('perm-guests-list', true);
 
   openModal('employee-modal');
   setTimeout(updatePermPreview, 50);
@@ -1927,7 +1928,8 @@ window.saveEmployee = async function() {
     financial:    document.getElementById('perm-financial')?.checked    ?? false,
     employees:    document.getElementById('perm-employees')?.checked    ?? false,
     activity:     document.getElementById('perm-activity')?.checked     ?? true,
-    guests:       document.getElementById('perm-rooms')?.checked        ?? true, // tied to rooms
+    guests:       document.getElementById('perm-guests-list')?.checked  ?? true,
+    'guests-list': document.getElementById('perm-guests-list')?.checked ?? true,
   };
 
   const empData = { name, username, password, role, permissions, updatedAt: Date.now() };
@@ -2038,6 +2040,7 @@ window.showEditEmployeeModal = function(empId) {
   setPermToggle('perm-financial',    !!p.financial);
   setPermToggle('perm-employees',    !!p.employees);
   setPermToggle('perm-activity',     p.activity     !== false);
+  setPermToggle('perm-guests-list',  p.guests !== false && p['guests-list'] !== false);
 
   openModal('employee-modal');
   setTimeout(updatePermPreview, 50);
@@ -2456,6 +2459,7 @@ window.updatePermPreview = function() {
     financial:    'perm-financial',
     employees:    'perm-employees',
     activity:     'perm-activity',
+    'guests-list': 'perm-guests-list',
   };
   document.querySelectorAll('#perm-preview-items .perm-preview-item').forEach(el => {
     const permKey = el.dataset.perm;
