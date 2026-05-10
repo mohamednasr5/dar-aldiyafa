@@ -26,43 +26,6 @@
 - 👨‍💼 **إدارة الموظفين** - صلاحيات متعددة
 - 📴 **وضع بدون إنترنت** - يعمل بالكامل Offline
 - 📱 **PWA** - قابل للتثبيت على Android و iPhone
-
-## 🚀 رفع على GitHub Pages
-
-### الطريقة الأولى: عبر الموقع مباشرة
-
-1. افتح [github.com](https://github.com) وسجّل دخول
-2. اضغط **"New repository"** (المستودع الجديد)
-3. اسمّه: `dar-aldiyafa` ← اختار Public
-4. اضغط **"Create repository"**
-5. اضغط **"uploading an existing file"**
-6. اسحب وارفع كل الملفات التالية:
-   ```
-   index.html
-   style.css
-   firebase.js
-   service-worker.js
-   manifest.json
-   assets/ (الفولدر كله)
-   ```
-7. اضغط **"Commit changes"**
-8. روح **Settings → Pages**
-9. في **Source** اختار: `Deploy from a branch`
-10. في **Branch** اختار: `main` ثم `/ (root)`
-11. اضغط **Save**
-12. انتظر دقيقتين ← رابطك هيبقى:  
-    `https://اسم-المستخدم.github.io/dar-aldiyafa`
-
-### الطريقة الثانية: عبر Git (للمتقدمين)
-
-```bash
-git init
-git add .
-git commit -m "🏨 Initial commit - Dar Al Diyafa Hotel System"
-git remote add origin https://github.com/USERNAME/dar-aldiyafa.git
-git push -u origin main
-```
-
 ## 📁 هيكل المشروع
 
 ```
@@ -83,18 +46,6 @@ dar-aldiyafa/
     ├── icon-384.png
     └── icon-512.png
 ```
-
-## 🔑 بيانات الدخول الافتراضية
-
-| المستخدم | كلمة المرور | الصلاحيات |
-|----------|-------------|-----------|
-| admin | 521988 | Super Admin |
-
-## 🔧 Firebase
-
-التطبيق متصل بـ Firebase Realtime Database تلقائياً.
-
-لا تحتاج أي إعداد إضافي.
 
 ## 📱 تثبيت كتطبيق
 
